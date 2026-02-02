@@ -31,9 +31,10 @@ def main():
         hidden_dim=128,
         output_dim=256,
         num_variants=3,  # Réduit pour être plus rapide
-        saturation_threshold=0.7,
+        saturation_threshold=0.55,
         min_cycles_before_expand=2,
-        expansion_cooldown=3
+        expansion_cooldown=3,
+        performance_threshold_ratio=0.90
     )
 
     print(f"\n✓ Configuration créée")

@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""
+Inférence avec un modèle ACOC entraîné
+======================================
+"""
+
+import torch
+from torchvision import datasets, transforms
+from acoc import ACOCModel
+
+
+def load_trained_model(checkpoint_path='acoc_mnist.pth'):
+    """Charge un modèle entraîné."""
+    print(f"📂 Chargement du modèle: {checkpoint_path}")
+
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    config = checkpoint['config']
+
+    # Créer le modèle
+    model = ACOCModel(config)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
+
+    print(f"  ✓ Modèle chargé (cycle {checkpoint['cycle']})")
+    print(f"  ✓ Paramètres: {model.get_total_params():,}")
+    print(f"  ✓ Blocs: {len(model.task_blocks)}")
+
+    return model, config
+
+
+def predict_single(model, image_tensor):
+    """Prédiction sur une seule image."""
+    with torch.no_grad():
+        image_tensor = image_tensor.to(model.device)
+        if image_tensor.dim() == 1:
+            image_tensor = image_tensor.unsqueeze(0)  # Ajouter batch dimension
+
+        output, routing_stats = model(image_tensor)
+        probabilities = torch.softmax(output, dim=-1)
+        predicted_class = torch.argmax(output, dim=-1).item()
+        confidence = probabilities[0, predicted_class].item()
+
+    return predicted_class, confidence, routing_stats
+
+
+def predict_batch(model, data_loader, num_samples=10):
+    """Prédictions sur un batch avec détails."""
+    model.eval()
+
+    images, labels = next(iter(data_loader))
+    images = images[:num_samples]
+    labels = labels[:num_samples]
+
+    print(f"\n🔍 Prédictions sur {num_samples} exemples:")
+    print(f"{'='*70}")
+
+    correct = 0
+    for i in range(num_samples):
+        image = images[i]
+        true_label = labels[i].item()
+
+        pred_class, confidence, routing = predict_single(model, image)
+        is_correct = pred_class == true_label
+        correct += is_correct
+
+        status = "✓" if is_correct else "✗"
+        print(f"{status} Sample {i+1}: Vrai={true_label}, Prédit={pred_class}, "
+              f"Confiance={confidence:.2%}")
+
+        # Montrer le routage
+        main_block = max(routing, key=routing.get)
+        print(f"   → Routé vers: {main_block} ({routing[main_block]} samples)")
+
+    print(f"{'='*70}")
+    print(f"Précision: {correct}/{num_samples} ({100*correct/num_samples:.1f}%)")
+
+
+def evaluate_full(model, data_loader):
+    """Évaluation complète sur un dataset."""
+    model.eval()
+    correct = 0
+    total = 0
+
+    print(f"\n📊 Évaluation complète...")
+
+    with torch.no_grad():
+        for images, labels in data_loader:
+            images = images.to(model.device)
+            labels = labels.to(model.device)
+
+            outputs, _ = model(images)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    accuracy = 100 * correct / total
+    print(f"  ✓ Accuracy: {accuracy:.2f}% ({correct}/{total})")
+    return accuracy
+
+
+def main():
+    print("=" * 70)
+    print("ACOC Inférence")
+    print("=" * 70)
+
+    # Charger le modèle
+    model, config = load_trained_model('acoc_mnist.pth')
+
+    # Charger les données de test (pas besoin de one-hot pour l'inférence)
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,)),
+        transforms.Lambda(lambda x: x.view(-1))
+    ])
+
+    test_dataset = datasets.MNIST(
+        './data', train=False, download=True, transform=transform
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=128, shuffle=False
+    )
+
+    # Exemples de prédictions
+    predict_batch(model, test_loader, num_samples=10)
+
+    # Évaluation complète
+    evaluate_full(model, test_loader)
+
+    print(f"\n{'='*70}")
+    print("✅ Inférence terminée!")
+    print(f"{'='*70}")
+
+
+if __name__ == "__main__":
+    main()

@@ -95,16 +95,16 @@ def main():
         task_param_threshold=500_000,
         
         # Expansion - seuil basé sur score de saturation combiné
-        saturation_threshold=0.5,  # 50% du score combiné
-        min_cycles_before_expand=3,
-        expansion_cooldown=4,
+        saturation_threshold=0.55,  # 55% du score combiné
+        min_cycles_before_expand=2,
+        expansion_cooldown=3,
         expansion_ratio=0.15,  # 15% de neurones ajoutés
-        
+
         # Variantes avec seuil RELATIF
         num_variants=5,
         delta_magnitude=0.01,
         top_k_merge=3,
-        performance_threshold_ratio=0.95,  # Expand si < 95% de la moyenne
+        performance_threshold_ratio=0.90,  # Expand si < 90% de la moyenne
         
         # Warmup après expansion
         warmup_steps=30,
