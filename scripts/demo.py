@@ -13,15 +13,10 @@ Usage:
     python -m acoc.demo --cycles 20 --device cuda
 """
 
-import sys
-import os
 import argparse
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-
-# Ajouter le dossier parent au path si nécessaire
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from acoc import ACOCModel, ACOCTrainer, SystemConfig
 
