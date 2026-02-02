@@ -12,14 +12,15 @@ Un système de réseau neuronal à croissance dynamique avec:
 
 Usage:
     from acoc import ACOCModel, ACOCTrainer, SystemConfig
-    
+
     config = SystemConfig(device='cuda')
     model = ACOCModel(config)
     trainer = ACOCTrainer(model, config)
     trainer.run(num_cycles=10)
 """
 
-from .structures import (
+# Configuration et structures
+from .config import (
     TaskType,
     TaskBlock,
     ModelMetrics,
@@ -29,26 +30,35 @@ from .structures import (
     SaturationMetrics
 )
 
-from .components import (
-    Router, 
-    Expert, 
-    ExpertBlock,
+# Composants de base
+from .core import (
+    Router,
+    Expert,
+    ExpertBlock
+)
+
+# Monitoring
+from .monitoring import (
     GradientFlowMonitor,
     ActivationMonitor
 )
 
+# Système de variantes
 from .variants import VariantSystem
 
-from .managers import (
+# Gestionnaires
+from .management import (
     ExpansionManager,
-    PenaltyManager, 
+    PenaltyManager,
     PruningManager,
     WarmupManager
 )
 
+# Modèle principal
 from .model import ACOCModel
 
-from .trainer import ACOCTrainer
+# Trainer
+from .training import ACOCTrainer
 
 
 __version__ = "0.2.0"
@@ -57,27 +67,27 @@ __author__ = "ACOC Project"
 __all__ = [
     # Structures
     "TaskType",
-    "TaskBlock", 
+    "TaskBlock",
     "ModelMetrics",
     "ExpansionDecision",
     "SystemConfig",
     "TrainingLog",
     "SaturationMetrics",
-    
+
     # Components
     "Router",
     "Expert",
     "ExpertBlock",
     "GradientFlowMonitor",
     "ActivationMonitor",
-    
+
     # Systems
     "VariantSystem",
     "ExpansionManager",
-    "PenaltyManager", 
+    "PenaltyManager",
     "PruningManager",
     "WarmupManager",
-    
+
     # Main
     "ACOCModel",
     "ACOCTrainer",
