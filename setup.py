@@ -14,7 +14,6 @@ setup(
     name="acoc",
     version="0.1.0",
     author="Clément Valtier",
-    author_email="clementvaltier@gmail.com",
     description="Adaptive Controlled Organic Capacity - Dynamic neural network growth",
     long_description=long_description,
     long_description_content_type="text/markdown",
