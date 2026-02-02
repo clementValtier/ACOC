@@ -38,6 +38,9 @@ class Router(nn.Module):
             nn.Linear(hidden_dim, num_routes)
         )
 
+        # Biais learnable pour orienter le routage (ex: favoriser CNN pour images)
+        self.route_bias = nn.Parameter(torch.zeros(num_routes))
+
         # EWC: Fisher information et anciens poids
         self.fisher_info: Optional[Dict[str, torch.Tensor]] = None
         self.old_params: Optional[Dict[str, torch.Tensor]] = None
@@ -53,7 +56,7 @@ class Router(nn.Module):
         Returns:
             (selected_indices, probabilities)
         """
-        logits = self.routing_net(x)
+        logits = self.routing_net(x) + self.route_bias  # Ajout du biais
         probabilities = F.softmax(logits, dim=-1)
         selected = probabilities.argmax(dim=-1)
 
@@ -101,6 +104,13 @@ class Router(nn.Module):
 
         self.routing_net[-1] = new_out
         self.num_routes += 1
+
+        # Étendre route_bias pour la nouvelle route
+        with torch.no_grad():
+            new_bias = torch.zeros(self.num_routes, device=device)
+            new_bias[:self.num_routes-1] = self.route_bias
+            new_bias[-1] = 0.0  # Biais neutre pour la nouvelle route
+            self.route_bias = nn.Parameter(new_bias)
 
         # Invalider EWC (les anciens paramètres ne sont plus valides)
         self.fisher_info = None
@@ -161,6 +171,50 @@ class Router(nn.Module):
                 loss += (self.fisher_info[n] * (p - self.old_params[n]).pow(2)).sum()
 
         return lambda_ewc * 0.5 * loss
+
+    def set_route_bias(self, route_idx: int, bias_value: float):
+        """
+        Configure un biais pour favoriser une route spécifique.
+
+        Args:
+            route_idx: Index de la route à favoriser
+            bias_value: Valeur du biais (positif = favorise, négatif = défavorise)
+        """
+        with torch.no_grad():
+            self.route_bias[route_idx] = bias_value
+
+    def detect_data_type(self, x: torch.Tensor) -> str:
+        """
+        Détecte le type de données en analysant les caractéristiques statistiques.
+
+        Args:
+            x: Batch de données [batch, features]
+
+        Returns:
+            "image", "text", ou "audio"
+        """
+        # Images: valeurs normalisées 0-1, variance moyenne, pas de valeurs négatives
+        # Texte: valeurs discrètes ou embeddings, peut avoir des négatifs
+        # Audio: valeurs continues, variance élevée
+
+        with torch.no_grad():
+            # Statistiques de base
+            mean_val = x.mean().item()
+            std_val = x.std().item()
+            min_val = x.min().item()
+            max_val = x.max().item()
+
+            # Images: généralement normalisées [0, 1] ou [-1, 1]
+            if min_val >= -0.1 and max_val <= 1.1 and 0.2 < mean_val < 0.8:
+                return "image"
+
+            # Texte: embeddings avec distribution centrée
+            elif abs(mean_val) < 0.1 and std_val > 0.5:
+                return "text"
+
+            # Audio: valeurs continues avec variance
+            else:
+                return "audio"
 
     def get_param_count(self) -> int:
         return sum(p.numel() for p in self.parameters())

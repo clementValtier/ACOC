@@ -47,7 +47,8 @@ class ACOCModel(nn.Module):
         
         self._force_exploration_block: Optional[str] = None
         self._exploration_prob: float = 0.0
-        
+        self._router_bias_initialized: bool = False
+
         self._initialize_base_blocks()
         self.to(self.device)
     
@@ -103,7 +104,23 @@ class ACOCModel(nn.Module):
     def forward(self, x: torch.Tensor, task_hint: Optional[TaskType] = None) -> Tuple[torch.Tensor, Dict[str, int]]:
         x = x.to(self.device)
         batch_size = x.size(0)
-        
+
+        # Initialisation automatique du biais du routeur au premier batch
+        if not self._router_bias_initialized:
+            data_type = self.router.detect_data_type(x)
+
+            # Mapper les types détectés aux indices des blocs de base
+            # base_text=0, base_image=1, base_audio=2
+            if data_type == "image" and "base_image" in self.task_blocks:
+                # Favoriser le bloc image avec un biais initial
+                self.router.set_route_bias(1, 2.0)  # Biais positif fort
+            elif data_type == "text" and "base_text" in self.task_blocks:
+                self.router.set_route_bias(0, 2.0)
+            elif data_type == "audio" and "base_audio" in self.task_blocks:
+                self.router.set_route_bias(2, 2.0)
+
+            self._router_bias_initialized = True
+
         if self._force_exploration_block is not None and self._exploration_prob > 0:
             block_ids = list(self.task_blocks.keys())
             if self._force_exploration_block in block_ids:

@@ -43,8 +43,25 @@ class CNNExpert(BaseExpert):
         self.fc1 = nn.Linear(self.flatten_dim, hidden_dim)
         self.activation = nn.ReLU()
         self.fc2 = nn.Linear(hidden_dim, output_dim)
-        
+
+        # He initialization pour meilleure convergence avec ReLU
+        self._init_weights()
+
         self._register_hooks()
+
+    def _init_weights(self):
+        """Initialisation He pour les convolutions et Linear."""
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
 
     def _detect_image_shape(self, input_dim, config):
         """
