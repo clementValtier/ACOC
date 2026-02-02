@@ -62,15 +62,18 @@ class MLPExpert(BaseExpert):
     def _register_hooks(self):
         for h in self._hooks: h.remove()
         self._hooks = []
-        
+
         def save_hidden(m, i, o):
             self.activation_monitor.record_activations(f"{self.name}_hidden", o.detach())
-        def save_grad(m, gi, go):
-            if go[0] is not None:
-                self.gradient_monitor.record_gradients(f"{self.name}_fc1", go[0].detach())
+
+        def save_grad(grad):
+            if grad is not None:
+                self.gradient_monitor.record_gradients(f"{self.name}_fc1", grad.detach())
 
         self._hooks.append(self.fc1.register_forward_hook(save_hidden))
-        self._hooks.append(self.fc1.register_full_backward_hook(save_grad))
+        # Hook sur le gradient du poids au lieu du module
+        if self.fc1.weight.requires_grad:
+            self._hooks.append(self.fc1.weight.register_hook(save_grad))
 
     def get_param_count(self) -> int:
         return sum(p.numel() for p in self.parameters())
