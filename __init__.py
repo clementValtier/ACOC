@@ -60,6 +60,9 @@ from .model import ACOCModel
 # Trainer
 from .training import ACOCTrainer
 
+# Utilities (optional)
+from .utils import get_logger, setup_logging
+
 
 __version__ = "0.2.0"
 __author__ = "ACOC Project"
