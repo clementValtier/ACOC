@@ -32,6 +32,28 @@ class ExpansionManager:
         # Tracking des blocs récemment créés (pour le warmup)
         self.recently_created_blocks: Dict[str, int] = {}  # block_id -> creation_cycle
 
+    def update_recent_usage(self, task_blocks: Dict[str, TaskBlock], current_cycle: int):
+        """Met à jour l'historique d'utilisation récente de tous les blocs."""
+        for block in task_blocks.values():
+            # Ajouter l'utilisation du cycle actuel
+            block.recent_usage.append(block.usage_count)
+
+            # Garder seulement les N derniers cycles
+            if len(block.recent_usage) > self.config.recent_usage_window:
+                block.recent_usage.pop(0)
+
+    def get_most_used_block_recent(self, task_blocks: Dict[str, TaskBlock]) -> Optional[TaskBlock]:
+        """Retourne le bloc avec la plus grande utilisation récente (moyenne)."""
+        if not task_blocks:
+            return None
+
+        def get_recent_avg(block: TaskBlock) -> float:
+            if not block.recent_usage:
+                return 0.0
+            return sum(block.recent_usage) / len(block.recent_usage)
+
+        return max(task_blocks.values(), key=get_recent_avg)
+
     def evaluate_expansion_need(
         self,
         metrics: ModelMetrics,
@@ -222,21 +244,27 @@ class ExpansionManager:
         target_id_hint: Optional[str] = None
     ) -> Optional[str]:
         new_id = f"block_{len(task_blocks)}"
-        
+
         task_type = TaskType.GENERIC
         expert_type = "mlp"
-        
-        # Logique d'héritage
-        if target_id_hint and target_id_hint in task_blocks:
-            parent = task_blocks[target_id_hint]
-            task_type = parent.task_type
-            if parent.layers and isinstance(parent.layers[0], BaseExpert):
-                expert_type = getattr(parent.layers[0], 'expert_type', "mlp")
-        elif task_blocks:
-            last_block = list(task_blocks.values())[-1]
-            task_type = last_block.task_type
-            if last_block.layers and isinstance(last_block.layers[0], BaseExpert):
-                expert_type = getattr(last_block.layers[0], 'expert_type', "mlp")
+
+        # LOGIQUE: Hériter du bloc le plus utilisé récemment
+        if task_blocks:
+            # Trouver le bloc avec la plus grande utilisation récente
+            most_used_block = self.get_most_used_block_recent(task_blocks)
+
+            if most_used_block:
+                # Hériter du type et de l'expert type
+                task_type = most_used_block.task_type
+                if most_used_block.layers and isinstance(most_used_block.layers[0], BaseExpert):
+                    expert_type = getattr(most_used_block.layers[0], 'expert_type', "mlp")
+
+            # Override: si target_id_hint est spécifié, l'utiliser en priorité
+            if target_id_hint and target_id_hint in task_blocks:
+                parent = task_blocks[target_id_hint]
+                task_type = parent.task_type
+                if parent.layers and isinstance(parent.layers[0], BaseExpert):
+                    expert_type = getattr(parent.layers[0], 'expert_type', "mlp")
 
         # Utilisation de la Factory
         expert = ExpertFactory.create(

@@ -425,7 +425,13 @@ class ACOCTrainer:
             saturation_details=sat_details
         )
         self.training_logs.append(log)
-        
+
+        # Sauvegarder l'utilisation récente avant reset
+        self.model.expansion_manager.update_recent_usage(
+            self.model.task_blocks,
+            self.model.current_cycle
+        )
+
         # Reset pour le prochain cycle
         self.model.reset_usage_counts()
         

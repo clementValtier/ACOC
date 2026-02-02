@@ -13,17 +13,18 @@ class CNNExpert(BaseExpert):
     def __init__(self, input_dim, hidden_dim, output_dim, name, config):
         super().__init__(input_dim, hidden_dim, output_dim, name, config)
         self.expert_type = "cnn"
-        
-        # 1. Construction des Convolutions
+
+        # 1. Détection automatique des dimensions d'image
+        in_channels, img_size = self._detect_image_shape(input_dim, config)
+        self.in_channels = in_channels
+        self.img_size = img_size
+
+        # 2. Construction des Convolutions
         layers = []
-        in_channels = config.image_channels if config else 3
-        
-        # Calcul taille image (supposée carrée)
-        self.img_size = int(math.sqrt(input_dim / in_channels))
-        current_size = self.img_size
-        
+        current_size = img_size
+
         cnn_channels = config.cnn_channels if config else [32, 64]
-        
+
         for out_channels in cnn_channels:
             layers.extend([
                 nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
@@ -45,12 +46,37 @@ class CNNExpert(BaseExpert):
         
         self._register_hooks()
 
+    def _detect_image_shape(self, input_dim, config):
+        """
+        Détecte automatiquement le nombre de channels et la taille d'image.
+        Essaie plusieurs combinaisons courantes: 1 (grayscale), 3 (RGB), 4 (RGBA).
+        """
+        # Priorité à la config si spécifiée
+        if config and hasattr(config, 'image_channels'):
+            channels = config.image_channels
+            size = int(math.sqrt(input_dim / channels))
+            # Vérifier que c'est cohérent
+            if size * size * channels == input_dim:
+                return channels, size
+
+        # Sinon, tester les combinaisons courantes
+        for channels in [1, 3, 4]:
+            size_float = math.sqrt(input_dim / channels)
+            size = int(size_float)
+
+            # Vérifier que c'est un carré parfait
+            if abs(size_float - size) < 0.01 and size * size * channels == input_dim:
+                return channels, size
+
+        # Fallback: supposer grayscale et prendre la racine carrée la plus proche
+        size = int(math.sqrt(input_dim))
+        return 1, size
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Reshape dynamique : [Batch, Pixels] -> [Batch, C, H, W]
         if x.dim() == 2:
             batch_size = x.size(0)
-            channels = self.config.image_channels if self.config else 3
-            x = x.view(batch_size, channels, self.img_size, self.img_size)
+            x = x.view(batch_size, self.in_channels, self.img_size, self.img_size)
             
         x = self.features(x)
         x = x.view(x.size(0), -1) # Flatten

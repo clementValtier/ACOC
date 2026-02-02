@@ -86,6 +86,9 @@ class TaskBlock:
     usage_count: int = 0
     last_used_cycle: int = 0
 
+    # Historique d'utilisation récente (list des N derniers cycles)
+    recent_usage: List[int] = field(default_factory=list)
+
     # Métriques de saturation détaillées
     saturation: SaturationMetrics = field(default_factory=SaturationMetrics)
 

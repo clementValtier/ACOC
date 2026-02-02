@@ -29,6 +29,7 @@ class SystemConfig:
     min_cycles_before_expand: int = 3   # Attendre au moins 3 cycles
     expansion_cooldown: int = 5         # Cycles minimum entre expansions
     expansion_ratio: float = 0.1        # Ajouter 10% de neurones
+    recent_usage_window: int = 5        # Fenêtre pour utilisation récente
 
     # === Variantes (Model Soups) ===
     num_variants: int = 5
