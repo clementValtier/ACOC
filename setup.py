@@ -17,7 +17,7 @@ setup(
     description="Adaptive Controlled Organic Capacity - Dynamic neural network growth",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/acoc",  # À mettre à jour
+    url="https://github.com/clementValtier/ACOC",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     classifiers=[

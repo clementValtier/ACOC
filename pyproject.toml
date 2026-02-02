@@ -38,8 +38,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/acoc"
-Repository = "https://github.com/yourusername/acoc"
+Homepage = "https://github.com/clementValtier/ACOC"
+Repository = "https://github.com/clementValtier/ACOC"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

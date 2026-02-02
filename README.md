@@ -17,7 +17,15 @@ ACOC est un modèle d'IA qui démarre avec une architecture minimale et s'agrand
 ## Installation
 
 ```bash
-pip install torch
+# Cloner le repository
+git clone https://github.com/clementValtier/ACOC.git
+cd ACOC
+
+# Installer en mode développement
+pip install -e .
+
+# Ou installer uniquement les dépendances
+pip install -r requirements.txt
 ```
 
 ## Usage
