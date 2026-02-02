@@ -55,7 +55,7 @@ class ACOCModel(nn.Module):
     def _initialize_base_blocks(self):
         """Crée les blocs de base via la Factory."""
         base_types = [TaskType.TEXT, TaskType.IMAGE, TaskType.AUDIO]
-        
+
         for task_type in base_types:
             block_id = f"base_{task_type.value}"
             
@@ -108,16 +108,13 @@ class ACOCModel(nn.Module):
         # Initialisation automatique du biais du routeur au premier batch
         if not self._router_bias_initialized:
             data_type = self.router.detect_data_type(x)
+            block_ids = list(self.task_blocks.keys())
 
-            # Mapper les types détectés aux indices des blocs de base
-            # base_text=0, base_image=1, base_audio=2
-            if data_type == "image" and "base_image" in self.task_blocks:
-                # Favoriser le bloc image avec un biais initial
-                self.router.set_route_bias(1, 2.0)  # Biais positif fort
-            elif data_type == "text" and "base_text" in self.task_blocks:
-                self.router.set_route_bias(0, 2.0)
-            elif data_type == "audio" and "base_audio" in self.task_blocks:
-                self.router.set_route_bias(2, 2.0)
+            target_block = f"base_{data_type}"
+            if target_block in block_ids:
+                target_idx = block_ids.index(target_block)
+                self.router.set_route_bias(target_idx, 1.0)
+                print(f"[Router] Type détecté: {data_type} → biais léger (+1.0) vers {target_block}")
 
             self._router_bias_initialized = True
 
@@ -136,7 +133,7 @@ class ACOCModel(nn.Module):
         block_ids = list(self.task_blocks.keys())
         routing_stats = {bid: 0 for bid in block_ids}
         outputs = torch.zeros(batch_size, self.config.output_dim, device=self.device)
-        
+
         for idx, block_id in enumerate(block_ids):
             mask = selected == idx
             if not mask.any():

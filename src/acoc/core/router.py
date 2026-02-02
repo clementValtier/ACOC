@@ -72,7 +72,7 @@ class Router(nn.Module):
         Forward avec exploration forcée vers certaines routes.
         Utilisé pour le warmup après expansion.
         """
-        logits = self.routing_net(x)
+        logits = self.routing_net(x) + self.route_bias
         probabilities = F.softmax(logits, dim=-1)
 
         if force_route is not None and exploration_prob > 0:
@@ -185,7 +185,8 @@ class Router(nn.Module):
 
     def detect_data_type(self, x: torch.Tensor) -> str:
         """
-        Détecte le type de données en analysant les caractéristiques statistiques.
+        Détecte le type de données en analysant d'abord la dimension,
+        puis les caractéristiques statistiques.
 
         Args:
             x: Batch de données [batch, features]
@@ -193,26 +194,36 @@ class Router(nn.Module):
         Returns:
             "image", "text", ou "audio"
         """
-        # Images: valeurs normalisées 0-1, variance moyenne, pas de valeurs négatives
-        # Texte: valeurs discrètes ou embeddings, peut avoir des négatifs
-        # Audio: valeurs continues, variance élevée
-
         with torch.no_grad():
-            # Statistiques de base
+            input_dim = x.shape[-1]
+
+            # 1. Détection basée sur la dimension (plus fiable)
+            # Dimensions communes d'images : 784 (28×28), 3072 (32×32×3), 2048, 4096, etc.
+            import math
+
+            # Vérifier si c'est une dimension d'image carrée
+            for channels in [1, 3, 4]:
+                size_float = math.sqrt(input_dim / channels)
+                size = int(size_float)
+                if abs(size_float - size) < 0.01 and size * size * channels == input_dim:
+                    # C'est probablement une image
+                    return "image"
+
+            # 2. Détection basée sur les statistiques (fallback)
             mean_val = x.mean().item()
             std_val = x.std().item()
             min_val = x.min().item()
             max_val = x.max().item()
 
-            # Images: généralement normalisées [0, 1] ou [-1, 1]
-            if min_val >= -0.1 and max_val <= 1.1 and 0.2 < mean_val < 0.8:
+            # Images normalisées : variance modérée, valeurs dans une plage raisonnable
+            if -3.0 < min_val < 3.0 and -3.0 < max_val < 3.0 and 0.5 < std_val < 2.5:
                 return "image"
 
             # Texte: embeddings avec distribution centrée
-            elif abs(mean_val) < 0.1 and std_val > 0.5:
+            elif abs(mean_val) < 0.2 and std_val > 0.3:
                 return "text"
 
-            # Audio: valeurs continues avec variance
+            # Audio: par défaut
             else:
                 return "audio"
 
