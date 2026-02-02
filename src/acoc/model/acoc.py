@@ -169,16 +169,25 @@ class ACOCModel(nn.Module):
         return outputs, routing_stats
     
     def compute_loss(
-        self, 
-        predictions: torch.Tensor, 
+        self,
+        predictions: torch.Tensor,
         targets: torch.Tensor,
         include_penalties: bool = True
     ) -> torch.Tensor:
         """
         Calcule la loss totale avec pénalités optionnelles.
         """
-        # Loss de base (MSE)
-        base_loss = nn.functional.mse_loss(predictions, targets)
+        # Loss de base
+        if self.config.use_cross_entropy:
+            # CrossEntropy pour classification
+            # targets doit être des indices de classe (shape: [batch])
+            # predictions est logits (shape: [batch, num_classes])
+            if targets.dim() == 2:  # Si one-hot, convertir en indices
+                targets = targets.argmax(dim=1)
+            base_loss = nn.functional.cross_entropy(predictions, targets)
+        else:
+            # MSE pour régression
+            base_loss = nn.functional.mse_loss(predictions, targets)
         
         if not include_penalties:
             return base_loss

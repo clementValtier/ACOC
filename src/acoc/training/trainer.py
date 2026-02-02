@@ -136,7 +136,7 @@ class ACOCTrainer:
         
         # Mettre à jour le warmup
         self.model.warmup_manager.step()
-        self.model.warmup_manager.check_and_cleanup()
+        self.model.warmup_manager.check_and_cleanup(current_cycle=self.model.current_cycle)
         
         # Enregistrer la loss moyenne
         avg_loss = sum(losses) / len(losses) if losses else 0.0

@@ -62,23 +62,51 @@ class WarmupManager:
             for info in self.active_warmups.values():
                 info["steps_done"] += 1
 
-    def should_continue_warmup(self, block_id: str) -> bool:
-        """Vérifie si le warmup doit continuer."""
+    def should_continue_warmup(self, block_id: str, current_cycle: int = None) -> bool:
+        """
+        Vérifie si le warmup doit continuer.
+        Timeout forcé après max_warmup_cycles pour éviter le warmup perpétuel.
+        """
         if block_id not in self.active_warmups:
             return False
-        return self.active_warmups[block_id]["steps_done"] < self.config.warmup_steps
+
+        info = self.active_warmups[block_id]
+
+        # Check steps
+        if info["steps_done"] >= self.config.warmup_steps:
+            return False
+
+        # Check cycles timeout
+        if current_cycle is not None:
+            cycles_elapsed = current_cycle - info["start_cycle"]
+            if cycles_elapsed >= self.config.max_warmup_cycles:
+                return False
+
+        return True
 
     def end_warmup(self, block_id: str):
         """Termine le warmup pour un bloc."""
         if block_id in self.active_warmups:
             del self.active_warmups[block_id]
 
-    def check_and_cleanup(self):
-        """Nettoie les warmups terminés."""
-        to_remove = [
-            block_id for block_id, info in self.active_warmups.items()
-            if info["steps_done"] >= self.config.warmup_steps
-        ]
+    def check_and_cleanup(self, current_cycle: int = None):
+        """
+        Nettoie les warmups terminés.
+        Retire aussi les warmups qui ont dépassé le timeout en cycles.
+        """
+        to_remove = []
+        for block_id, info in self.active_warmups.items():
+            # Cleanup par steps
+            if info["steps_done"] >= self.config.warmup_steps:
+                to_remove.append(block_id)
+                continue
+
+            # Cleanup par timeout cycles
+            if current_cycle is not None:
+                cycles_elapsed = current_cycle - info["start_cycle"]
+                if cycles_elapsed >= self.config.max_warmup_cycles:
+                    to_remove.append(block_id)
+
         for block_id in to_remove:
             del self.active_warmups[block_id]
 

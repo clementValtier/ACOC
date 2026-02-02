@@ -39,8 +39,9 @@ class SystemConfig:
     # === Warmup après expansion ===
     warmup_steps: int = 50              # Steps de warmup après expansion
     warmup_lr_multiplier: float = 5.0   # LR multiplié pour nouveaux params
-    new_block_exploration_prob: float = 0.3  # Prob de forcer vers nouveau bloc
+    new_block_exploration_prob: float = 0.1  # Prob de forcer vers nouveau bloc (réduit de 0.3)
     new_block_exploration_cycles: int = 3    # Cycles d'exploration forcée
+    max_warmup_cycles: int = 10         # Cycles max avant désactivation forcée du warmup
 
     # === Pruning / Consolidation ===
     prune_unused_after_cycles: int = 20
@@ -59,3 +60,6 @@ class SystemConfig:
 
     # === Device ===
     device: str = "cuda"  # "cuda" ou "cpu"
+
+    # === Loss function ===
+    use_cross_entropy: bool = False  # True pour classification (vs MSE pour régression)

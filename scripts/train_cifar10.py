@@ -80,7 +80,10 @@ def main():
         min_cycles_before_expand=2,
         expansion_cooldown=8,
         performance_threshold_ratio=0.95,
-        warmup_steps=200
+        warmup_steps=200,
+        use_cross_entropy=True,  # CrossEntropy pour classification
+        new_block_exploration_prob=0.1,  # Réduit de 0.3 à 0.1
+        max_warmup_cycles=10  # Timeout warmup après 10 cycles
     )
 
     print(f"\n✓ Configuration:")
