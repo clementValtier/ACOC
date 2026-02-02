@@ -62,17 +62,21 @@ def main():
     print("Dataset difficile - 100 classes - Training très long")
     print("=" * 70)
 
-    # Configuration pour dataset très complexe
+    # Configuration optimisée pour dataset très complexe
     config = SystemConfig(
         device='mps' if torch.backends.mps.is_available() else 'cpu',
         input_dim=3072,
         hidden_dim=768,  # Encore plus grand pour 100 classes
         output_dim=100,  # 100 classes
         num_variants=5,
-        saturation_threshold=0.55,
+        saturation_threshold=0.65,
         min_cycles_before_expand=2,
-        expansion_cooldown=3,
-        performance_threshold_ratio=0.90
+        expansion_cooldown=8,
+        performance_threshold_ratio=0.95,
+        warmup_steps=200,
+        use_cross_entropy=True,
+        new_block_exploration_prob=0.1,
+        max_warmup_cycles=10
     )
 
     print(f"\n✓ Configuration:")

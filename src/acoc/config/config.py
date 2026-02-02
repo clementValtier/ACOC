@@ -62,4 +62,4 @@ class SystemConfig:
     device: str = "cuda"  # "cuda" ou "cpu"
 
     # === Loss function ===
-    use_cross_entropy: bool = False  # True pour classification (vs MSE pour régression)
+    use_cross_entropy: bool = True  # CrossEntropy par défaut (classification)

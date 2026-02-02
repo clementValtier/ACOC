@@ -176,17 +176,23 @@ class ACOCModel(nn.Module):
     ) -> torch.Tensor:
         """
         Calcule la loss totale avec pénalités optionnelles.
+        Par défaut utilise CrossEntropy (classification).
         """
-        # Loss de base
+        # Loss de base - CrossEntropy pour classification
         if self.config.use_cross_entropy:
-            # CrossEntropy pour classification
             # targets doit être des indices de classe (shape: [batch])
             # predictions est logits (shape: [batch, num_classes])
             if targets.dim() == 2:  # Si one-hot, convertir en indices
                 targets = targets.argmax(dim=1)
             base_loss = nn.functional.cross_entropy(predictions, targets)
         else:
-            # MSE pour régression
+            # MSE pour régression (legacy - non recommandé)
+            import warnings
+            warnings.warn(
+                "MSE loss est déprécié pour ACOC. Utilisez use_cross_entropy=True.",
+                DeprecationWarning,
+                stacklevel=2
+            )
             base_loss = nn.functional.mse_loss(predictions, targets)
         
         if not include_penalties:

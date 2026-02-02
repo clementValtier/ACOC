@@ -57,17 +57,21 @@ def main():
     print("ACOC Training sur Fashion-MNIST")
     print("=" * 70)
 
-    # Configuration
+    # Configuration optimisée
     config = SystemConfig(
         device='mps' if torch.backends.mps.is_available() else 'cpu',
         input_dim=784,
         hidden_dim=256,
         output_dim=10,
         num_variants=5,
-        saturation_threshold=0.55,  # Baissé de 0.6
-        min_cycles_before_expand=2,  # Réduit de 3
-        expansion_cooldown=3,  # Réduit de 5
-        performance_threshold_ratio=0.90  # Baissé de 0.95
+        saturation_threshold=0.65,
+        min_cycles_before_expand=2,
+        expansion_cooldown=8,
+        performance_threshold_ratio=0.95,
+        warmup_steps=200,
+        use_cross_entropy=True,
+        new_block_exploration_prob=0.1,
+        max_warmup_cycles=10
     )
 
     print(f"\n✓ Configuration:")

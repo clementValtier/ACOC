@@ -209,7 +209,13 @@ class ACOCTrainer:
                             val_y = torch.randn_like(val_x)
                         
                         outputs, _ = model(val_x)
-                        loss = nn.functional.mse_loss(outputs, val_y)
+                        # Utiliser la même loss que le training
+                        if self.config.use_cross_entropy:
+                            if val_y.dim() == 2:  # Si one-hot, convertir
+                                val_y = val_y.argmax(dim=1)
+                            loss = nn.functional.cross_entropy(outputs, val_y)
+                        else:
+                            loss = nn.functional.mse_loss(outputs, val_y)
                         total_loss += loss.item() * val_x.size(0)
                         count += val_x.size(0)
                         
@@ -221,9 +227,15 @@ class ACOCTrainer:
                 # Données simulées
                 with torch.no_grad():
                     val_x = torch.randn(100, self.config.input_dim, device=device)
-                    val_y = torch.randn(100, self.config.output_dim, device=device)
-                    outputs, _ = model(val_x)
-                    avg_loss = nn.functional.mse_loss(outputs, val_y).item()
+                    if self.config.use_cross_entropy:
+                        # Pour CrossEntropy, générer des indices aléatoires
+                        val_y = torch.randint(0, self.config.output_dim, (100,), device=device)
+                        outputs, _ = model(val_x)
+                        avg_loss = nn.functional.cross_entropy(outputs, val_y).item()
+                    else:
+                        val_y = torch.randn(100, self.config.output_dim, device=device)
+                        outputs, _ = model(val_x)
+                        avg_loss = nn.functional.mse_loss(outputs, val_y).item()
             
             # Convertir la loss en score (inverse)
             score = 1.0 / (1.0 + avg_loss)
