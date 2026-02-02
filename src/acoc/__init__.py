@@ -31,10 +31,13 @@ from .config import (
 )
 
 # Composants de base
-from .core import (
-    Router,
-    Expert,
-    ExpertBlock
+from .core import Router
+from .experts import (
+    BaseExpert,
+    MLPExpert,
+    CNNExpert,
+    ExpertBlock,
+    ExpertFactory
 )
 
 # Monitoring
@@ -79,8 +82,11 @@ __all__ = [
 
     # Components
     "Router",
-    "Expert",
+    "BaseExpert",
+    "MLPExpert",
+    "CNNExpert",
     "ExpertBlock",
+    "ExpertFactory",
     "GradientFlowMonitor",
     "ActivationMonitor",
 

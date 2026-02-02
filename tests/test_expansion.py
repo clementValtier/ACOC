@@ -6,7 +6,7 @@ import torch
 import pytest
 from acoc.config import SystemConfig, TaskBlock, ModelMetrics, TaskType, SaturationMetrics
 from acoc.management import ExpansionManager
-from acoc.core import Expert
+from acoc.experts import MLPExpert
 
 
 class TestExpansionManager:
@@ -28,9 +28,9 @@ class TestExpansionManager:
         return ExpansionManager(config)
 
     @pytest.fixture
-    def task_blocks(self):
+    def task_blocks(self, config):
         """Blocs de tâches pour les tests."""
-        expert = Expert(input_dim=256, hidden_dim=512, output_dim=256)
+        expert = MLPExpert(input_dim=256, hidden_dim=512, output_dim=256, name="test_expert", config=config)
         block = TaskBlock(
             id="test_block",
             task_type=TaskType.TEXT,

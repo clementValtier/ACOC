@@ -12,8 +12,7 @@ from ..config import (
     SystemConfig, TaskBlock, ModelMetrics,
     ExpansionDecision, TaskType
 )
-from ..core import Expert
-
+from ..experts import ExpertFactory, ExpertBlock, BaseExpert
 
 class ExpansionManager:
     """
@@ -145,7 +144,7 @@ class ExpansionManager:
             success = self._expand_depth(decision.target_block_id, task_blocks)
 
         elif decision.expansion_type == "new_block":
-            new_id = self._create_new_block(task_blocks, current_cycle, device)
+            new_id = self._create_new_block(task_blocks, current_cycle, device, decision.target_block_id)
             if new_id:
                 decision.target_block_id = new_id
                 self.recently_created_blocks[new_id] = current_cycle
@@ -173,7 +172,7 @@ class ExpansionManager:
         block = task_blocks[block_id]
 
         for layer in block.layers:
-            if isinstance(layer, Expert):
+            if isinstance(layer, BaseExpert):
                 additional = max(1, int(layer.hidden_dim * self.config.expansion_ratio))
                 layer.expand_width(additional)
                 layer.reset_monitors()
@@ -192,15 +191,23 @@ class ExpansionManager:
 
         block = task_blocks[block_id]
 
-        if block.layers and isinstance(block.layers[-1], Expert):
+        if block.layers and isinstance(block.layers[-1], BaseExpert):
             last_expert = block.layers[-1]
-            # Créer un nouvel expert avec les mêmes dimensions
-            new_expert = Expert(
-                input_dim=last_expert.output_dim,
-                hidden_dim=last_expert.output_dim,
-                output_dim=last_expert.output_dim,
-                name=f"{block_id}_expert_{len(block.layers)}"
-            )
+
+            # On récupère le type de l'expert précédent pour créer le même
+            # (Si c'était un CNN, on ajoute un CNN, etc.)
+            expert_type = getattr(last_expert, 'expert_type', 'mlp')
+            
+            # Créer un nouvel expert via la Factory
+            new_expert = ExpertFactory.create(
+                expert_type=expert_type,
+                input_dim=last_expert.output_dim,   # L'entrée est la sortie du précédent
+                hidden_dim=last_expert.output_dim,  # On garde la même largeur
+                output_dim=last_expert.output_dim,  # On garde la même sortie
+                name=f"{block_id}_expert_{len(block.layers)}",
+                config=self.config
+            ).to(last_expert.parameters().__next__().device) # Même device que le précédent
+            
             block.layers.append(new_expert)
             block.update_param_count()
             return True
@@ -211,21 +218,39 @@ class ExpansionManager:
         self,
         task_blocks: Dict[str, TaskBlock],
         current_cycle: int,
-        device: torch.device
+        device: torch.device,
+        target_id_hint: Optional[str] = None
     ) -> Optional[str]:
-        """Crée un nouveau bloc générique."""
         new_id = f"block_{len(task_blocks)}"
+        
+        task_type = TaskType.GENERIC
+        expert_type = "mlp"
+        
+        # Logique d'héritage
+        if target_id_hint and target_id_hint in task_blocks:
+            parent = task_blocks[target_id_hint]
+            task_type = parent.task_type
+            if parent.layers and isinstance(parent.layers[0], BaseExpert):
+                expert_type = getattr(parent.layers[0], 'expert_type', "mlp")
+        elif task_blocks:
+            last_block = list(task_blocks.values())[-1]
+            task_type = last_block.task_type
+            if last_block.layers and isinstance(last_block.layers[0], BaseExpert):
+                expert_type = getattr(last_block.layers[0], 'expert_type', "mlp")
 
-        expert = Expert(
+        # Utilisation de la Factory
+        expert = ExpertFactory.create(
+            expert_type=expert_type,
             input_dim=self.config.input_dim,
             hidden_dim=self.config.hidden_dim,
             output_dim=self.config.output_dim,
-            name=f"{new_id}_expert_0"
+            name=f"{new_id}_expert_0",
+            config=self.config
         ).to(device)
 
         new_block = TaskBlock(
             id=new_id,
-            task_type=TaskType.GENERIC,
+            task_type=task_type,
             num_params=expert.get_param_count(),
             layers=[expert],
             creation_cycle=current_cycle

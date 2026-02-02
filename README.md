@@ -55,7 +55,8 @@ trainer.run(num_cycles=20, num_steps=100)
 ```
 acoc/
 ├── config/          Configuration et structures de données
-├── core/            Router + Expert (composants de base)
+├── core/            Router
+├── experts/         BaseExpert
 ├── monitoring/      Monitoring des gradients et activations
 ├── management/      Expansion, Warmup, Penalty, Pruning
 ├── variants/        Système de vote par variantes
