@@ -63,6 +63,8 @@ class ACOCModel(nn.Module):
             expert_type = "mlp"
             if task_type == TaskType.IMAGE and self.config.use_cnn:
                 expert_type = "cnn"
+            elif task_type == TaskType.AUDIO:
+                expert_type = "audio_mlp"
             
             # Utilisation de la Factory
             expert = ExpertFactory.create(
@@ -209,9 +211,27 @@ class ACOCModel(nn.Module):
             block.usage_count = 0
     
     def evaluate_expansion(self) -> ExpansionDecision:
-        return self.expansion_manager.evaluate_expansion_need(
+        # 1. Obtenir la recommandation du manager (basée sur stagnation/saturation)
+        decision = self.expansion_manager.evaluate_expansion_need(
             self.metrics, self.task_blocks, self.current_cycle
         )
+        
+        # 2. Appliquer le VETO du vote des variantes
+        # Si le manager veut expandre (souvent à cause de la stagnation)
+        # MAIS que les variantes ont voté NON (car la qualité interne est mauvaise/morte)
+        if decision.should_expand and self.variant_system.last_vote_result is False:
+            
+            # Exception : Si c'est une saturation explicite (pas juste stagnation), on garde l'expansion
+            is_saturation = "Saturation" in decision.reason
+            
+            if not is_saturation:
+                print(f"  [Veto] Expansion annulée par le vote des variantes (Reason orig: {decision.reason})")
+                decision.should_expand = False
+                decision.reason = "Annulé par Vote Variantes (Stagnation sans consensus interne)"
+                decision.expansion_type = None
+                decision.target_block_id = None
+
+        return decision
     
     def execute_expansion(self, decision: ExpansionDecision) -> bool:
         """Exécute une décision d'expansion"""

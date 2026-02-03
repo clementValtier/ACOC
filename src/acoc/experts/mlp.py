@@ -77,3 +77,26 @@ class MLPExpert(BaseExpert):
 
     def get_param_count(self) -> int:
         return sum(p.numel() for p in self.parameters())
+
+
+class AudioMLPExpert(MLPExpert):
+    """
+    MLP spécifique pour l'Audio.
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim, name, config=None):
+        super().__init__(input_dim, hidden_dim, output_dim, name, config)
+        self.expert_type = "audio_mlp"
+        
+        self.norm = nn.LayerNorm(input_dim)
+
+        self.activation = nn.LeakyReLU(negative_slope=0.1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Aplatir si nécessaire
+        if x.dim() > 2:
+            x = x.view(x.size(0), -1)
+        
+        x = self.norm(x)
+        
+        hidden = self.activation(self.fc1(x))
+        return self.fc2(hidden)

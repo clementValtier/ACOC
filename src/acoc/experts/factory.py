@@ -4,7 +4,7 @@ ACOC - Expert Factory
 Fabrique pour instancier les experts selon leur type.
 """
 
-from .mlp import MLPExpert
+from .mlp import MLPExpert, AudioMLPExpert
 from .cnn import CNNExpert
 from ..config import SystemConfig
 
@@ -26,6 +26,9 @@ class ExpertFactory:
 
         if expert_type == "mlp":
             return MLPExpert(input_dim, hidden_dim, output_dim, name, config)
+
+        elif expert_type == "audio_mlp":
+            return AudioMLPExpert(input_dim, hidden_dim, output_dim, name, config)
 
         elif expert_type == "cnn":
             try:
