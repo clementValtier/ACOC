@@ -30,8 +30,6 @@ class VariantSystem:
         self.device = device or torch.device('cpu')
         self.deltas: List[Dict[str, torch.Tensor]] = []
 
-        self.last_vote_result: Optional[bool] = None 
-
         # Historique des scores pour le seuil relatif
         self.score_history: deque = deque(maxlen=20)
 
@@ -172,9 +170,6 @@ class VariantSystem:
         expand_count = sum(expansion_votes)
         total = len(expansion_votes)
         should_expand = expand_count > total // 2
-
-        self.last_vote_result = should_expand
-
         confidence = expand_count / total if total > 0 else 0.0
 
         # Générer la raison détaillée
