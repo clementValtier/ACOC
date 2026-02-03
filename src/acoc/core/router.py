@@ -215,12 +215,19 @@ class Router(nn.Module):
             min_val = x.min().item()
             max_val = x.max().item()
 
+            # Sparsité : proportion de valeurs proches de zéro
+            sparsity = (x.abs() < 1e-6).float().mean().item()
+
+            # Texte (TF-IDF) : TRÈS sparse (>70% de zéros), valeurs positives
+            if sparsity > 0.7 and min_val >= 0:
+                return "text"
+
             # Images normalisées : variance modérée, valeurs dans une plage raisonnable
             if -3.0 < min_val < 3.0 and -3.0 < max_val < 3.0 and 0.5 < std_val < 2.5:
                 return "image"
 
-            # Texte: embeddings avec distribution centrée
-            elif abs(mean_val) < 0.2 and std_val > 0.3:
+            # Texte (embeddings denses) : distribution centrée, sparsity modérée
+            elif abs(mean_val) < 0.2 and std_val > 0.3 and sparsity < 0.5:
                 return "text"
 
             # Audio: par défaut

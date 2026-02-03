@@ -1,140 +1,79 @@
 #!/usr/bin/env python3
 """
-Training ACOC sur MNIST - Dataset réel
-======================================
-Dataset léger (~10MB) parfait pour MacBook.
+Training ACOC sur MNIST (Refactorisé)
+=====================================
+Classification de chiffres manuscrits 0-9.
 """
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from acoc import ACOCModel, ACOCTrainer, SystemConfig
+from base_trainer import BaseACOCTrainer, create_onehot_collate_fn
+from acoc import SystemConfig
 
 
-def get_mnist_loaders(batch_size=64, data_dir='./data'):
-    """Télécharge et prépare MNIST."""
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,)),
-        transforms.Lambda(lambda x: x.view(-1))  # Flatten 28x28 -> 784
-    ])
+class MNISTTrainer(BaseACOCTrainer):
+    """Trainer spécifique pour MNIST."""
 
-    train_dataset = datasets.MNIST(
-        data_dir, train=True, download=True, transform=transform
-    )
-    test_dataset = datasets.MNIST(
-        data_dir, train=False, transform=transform
-    )
+    CLASSES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 
-    def collate_fn(batch):
-        """Convertit les labels en one-hot."""
-        images, labels = zip(*batch)
-        images = torch.stack(images)
-        labels = torch.tensor(labels)
-        labels_onehot = torch.nn.functional.one_hot(labels, num_classes=10).float()
-        return images, labels_onehot
+    def get_config(self) -> SystemConfig:
+        return SystemConfig(
+            device=self.device,
+            input_dim=784,  # 28×28
+            hidden_dim=256,
+            output_dim=10,
+            num_variants=5,
+            saturation_threshold=0.8,
+            min_cycles_before_expand=10,
+            expansion_cooldown=15,
+            use_cnn=True,
+            cnn_channels=[16, 32],
+            image_channels=1
+        )
 
-    train_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn
-    )
-    test_loader = DataLoader(
-        test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
-    )
+    def get_dataloaders(self) -> tuple:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,)),  # Normalisation standard MNIST
+            transforms.Lambda(lambda x: x.view(-1))  # Flatten 28×28 -> 784
+        ])
 
-    return train_loader, test_loader
+        train_dataset = datasets.MNIST(
+            './data', train=True, download=True, transform=transform
+        )
+        test_dataset = datasets.MNIST(
+            './data', train=False, transform=transform
+        )
 
+        collate_fn = create_onehot_collate_fn(10)
 
-def main():
-    print("=" * 70)
-    print("ACOC Training sur MNIST")
-    print("=" * 70)
+        train_loader = DataLoader(
+            train_dataset, batch_size=self.batch_size, shuffle=True,
+            collate_fn=collate_fn, num_workers=0
+        )
+        test_loader = DataLoader(
+            test_dataset, batch_size=self.batch_size, shuffle=False,
+            collate_fn=collate_fn, num_workers=0
+        )
 
-    # Configuration optimisée
-    config = SystemConfig(
-        device='mps' if torch.backends.mps.is_available() else 'cpu',
-        input_dim=784,  # 28x28 images aplaties
-        hidden_dim=256,
-        output_dim=10,  # 10 classes (chiffres 0-9)
-        num_variants=5,
-        saturation_threshold=0.65,
-        min_cycles_before_expand=2,
-        expansion_cooldown=8,
-        performance_threshold_ratio=0.95,
-        warmup_steps=200,
-        use_cross_entropy=True,
-        new_block_exploration_prob=0.1,
-        max_warmup_cycles=10
-    )
+        return train_loader, test_loader
 
-    print(f"\n✓ Configuration:")
-    print(f"  - Device: {config.device}")
-    print(f"  - Input: {config.input_dim}, Hidden: {config.hidden_dim}, Output: {config.output_dim}")
-    print(f"  - Variants: {config.num_variants}")
+    def get_class_names(self) -> list:
+        return self.CLASSES
 
-    # Charger MNIST
-    print(f"\n📥 Téléchargement de MNIST...")
-    train_loader, test_loader = get_mnist_loaders(batch_size=128)
-    print(f"  - Train: {len(train_loader.dataset)} samples")
-    print(f"  - Test: {len(test_loader.dataset)} samples")
+    def get_dataset_name(self) -> str:
+        return "mnist"
 
-    # Modèle
-    model = ACOCModel(config)
-    print(f"\n✓ Modèle créé: {model.get_total_params():,} paramètres")
-
-    # Trainer
-    trainer = ACOCTrainer(model, config, learning_rate=0.001)
-
-    # Training
-    print(f"\n{'='*70}")
-    print("Démarrage du training (20 cycles)...")
-    print(f"{'='*70}")
-
-    trainer.run(
-        num_cycles=20,
-        data_loader=train_loader,
-        validation_data=test_loader,
-        num_steps_per_cycle=100,  # 100 steps par cycle
-        verbose=True
-    )
-
-    # Sauvegarder
-    print(f"\n💾 Sauvegarde du modèle...")
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'config': config,
-        'cycle': model.current_cycle,
-        'training_logs': trainer.training_logs,
-    }, 'acoc_mnist.pth')
-    print(f"  ✓ Sauvegardé: acoc_mnist.pth")
-
-    # Évaluation finale
-    print(f"\n📊 Évaluation finale...")
-    model.eval()
-    correct = 0
-    total = 0
-
-    with torch.no_grad():
-        for images, labels in test_loader:
-            images = images.to(model.device)
-            labels = labels.to(model.device)
-
-            outputs, _ = model(images)
-            _, predicted = torch.max(outputs, 1)
-            _, labels_idx = torch.max(labels, 1)  # Convertir one-hot en indices
-            total += labels.size(0)
-            correct += (predicted == labels_idx).sum().item()
-
-    accuracy = 100 * correct / total
-    print(f"  Accuracy: {accuracy:.2f}%")
-    print(f"  Paramètres finaux: {model.get_total_params():,}")
-    print(f"  Blocs finaux: {len(model.task_blocks)}")
-
-    print(f"\n{'='*70}")
-    print("✅ Training terminé!")
-    print(f"{'='*70}")
+    def get_dataset_info(self) -> dict:
+        return {
+            "Input": "784 (28×28 grayscale)",
+            "Hidden": 256,
+            "Classes": "Chiffres 0-9"
+        }
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    trainer = MNISTTrainer(num_cycles=25, batch_size=128)
+    trainer.run()
