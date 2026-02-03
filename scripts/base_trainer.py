@@ -146,14 +146,24 @@ class BaseACOCTrainer(ABC):
         print("✅ Training terminé!")
         print("=" * 70)
 
+class OneHotCollate:
+    """
+    Classe callable pour le one-hot encoding.
+    Nécessaire pour être 'picklable' par le DataLoader avec num_workers > 0.
+    """
+    def __init__(self, num_classes: int):
+        self.num_classes = num_classes
 
-def create_onehot_collate_fn(num_classes: int):
-    """Factory pour créer une fonction collate avec one-hot encoding."""
-    def collate_fn(batch):
+    def __call__(self, batch):
         """Convertit les labels en one-hot."""
         data, labels = zip(*batch)
         data = torch.stack(data)
         labels = torch.tensor(labels)
-        labels_onehot = torch.nn.functional.one_hot(labels, num_classes=num_classes).float()
+        labels_onehot = torch.nn.functional.one_hot(
+            labels, num_classes=self.num_classes
+        ).float()
         return data, labels_onehot
-    return collate_fn
+
+def create_onehot_collate_fn(num_classes: int):
+    """Factory qui retourne une instance callable picklable."""
+    return OneHotCollate(num_classes)

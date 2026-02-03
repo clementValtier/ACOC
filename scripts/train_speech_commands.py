@@ -56,6 +56,14 @@ class SpeechCommandsTrainer(BaseACOCTrainer):
         self.n_mfcc = n_mfcc
         self.label_to_idx = {label: idx for idx, label in enumerate(self.LABELS)}
 
+        # Pré-créer les transformations audio pour éviter de les recréer à chaque batch
+        self.resampler = torchaudio.transforms.Resample(16000, 8000)
+        self.mfcc_transform = torchaudio.transforms.MFCC(
+            sample_rate=8000,
+            n_mfcc=self.n_mfcc,
+            melkwargs={'n_fft': 400, 'hop_length': 160, 'n_mels': self.n_mfcc}
+        )
+
     def get_config(self) -> SystemConfig:
         # MFCC: n_mfcc coefficients × frames
         # On fixe à n_mfcc × 100 frames = 4000 features (avec padding/troncature)
@@ -75,16 +83,10 @@ class SpeechCommandsTrainer(BaseACOCTrainer):
         """Transforme l'audio en features MFCC."""
         # Resampler à 8kHz si nécessaire
         if sample_rate != 8000:
-            resampler = torchaudio.transforms.Resample(sample_rate, 8000)
-            waveform = resampler(waveform)
+            waveform = self.resampler(waveform)
 
-        # MFCC (n_mels doit être >= n_mfcc)
-        mfcc_transform = torchaudio.transforms.MFCC(
-            sample_rate=8000,
-            n_mfcc=self.n_mfcc,
-            melkwargs={'n_fft': 400, 'hop_length': 160, 'n_mels': self.n_mfcc}
-        )
-        mfcc = mfcc_transform(waveform)
+        # Utiliser le transform MFCC pré-créé
+        mfcc = self.mfcc_transform(waveform)
 
         # Padding/troncature à 100 frames
         target_length = 100
@@ -139,14 +141,14 @@ class SpeechCommandsTrainer(BaseACOCTrainer):
             batch_size=self.batch_size,
             shuffle=True,
             collate_fn=self._collate_fn,
-            num_workers=0
+            num_workers=2, persistent_workers=True
         )
         test_loader = DataLoader(
             test_dataset,
             batch_size=self.batch_size,
             shuffle=False,
             collate_fn=self._collate_fn,
-            num_workers=0
+            num_workers=2, persistent_workers=True
         )
 
         return train_loader, test_loader

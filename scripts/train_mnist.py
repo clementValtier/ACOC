@@ -37,7 +37,7 @@ class MNISTTrainer(BaseACOCTrainer):
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.1307,), (0.3081,)),  # Normalisation standard MNIST
-            transforms.Lambda(lambda x: x.view(-1))  # Flatten 28×28 -> 784
+            transforms.Lambda(torch.flatten)
         ])
 
         train_dataset = datasets.MNIST(
@@ -51,11 +51,11 @@ class MNISTTrainer(BaseACOCTrainer):
 
         train_loader = DataLoader(
             train_dataset, batch_size=self.batch_size, shuffle=True,
-            collate_fn=collate_fn, num_workers=0
+            collate_fn=collate_fn, num_workers=2, persistent_workers=True
         )
         test_loader = DataLoader(
             test_dataset, batch_size=self.batch_size, shuffle=False,
-            collate_fn=collate_fn, num_workers=0
+            collate_fn=collate_fn, num_workers=2, persistent_workers=True
         )
 
         return train_loader, test_loader

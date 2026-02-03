@@ -85,10 +85,12 @@ class IMDBTrainer(BaseACOCTrainer):
             test_dataset = TensorDataset(test_X, test_y_onehot)
 
             train_loader = DataLoader(
-                train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0
+                train_dataset, batch_size=self.batch_size, shuffle=True,
+                num_workers=2, persistent_workers=True
             )
             test_loader = DataLoader(
-                test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0
+                test_dataset, batch_size=self.batch_size, shuffle=False,
+                num_workers=2, persistent_workers=True
             )
 
             return train_loader, test_loader

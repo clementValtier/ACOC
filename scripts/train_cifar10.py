@@ -43,13 +43,13 @@ class CIFAR10Trainer(BaseACOCTrainer):
             transforms.RandomCrop(32, padding=4),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            transforms.Lambda(lambda x: x.view(-1))  # Flatten
+            transforms.Lambda(torch.flatten)
         ])
 
         transform_test = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            transforms.Lambda(lambda x: x.view(-1))
+            transforms.Lambda(torch.flatten)
         ])
 
         train_dataset = datasets.CIFAR10(
@@ -63,11 +63,11 @@ class CIFAR10Trainer(BaseACOCTrainer):
 
         train_loader = DataLoader(
             train_dataset, batch_size=self.batch_size, shuffle=True,
-            collate_fn=collate_fn, num_workers=0
+            collate_fn=collate_fn, num_workers=2, persistent_workers=True
         )
         test_loader = DataLoader(
             test_dataset, batch_size=self.batch_size, shuffle=False,
-            collate_fn=collate_fn, num_workers=0
+            collate_fn=collate_fn, num_workers=2, persistent_workers=True
         )
 
         return train_loader, test_loader
