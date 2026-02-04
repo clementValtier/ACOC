@@ -1,7 +1,7 @@
 """
 ACOC - Expansion Manager
 ========================
-Décide quand et comment étendre le modèle.
+Determines when and how to expand the model.
 """
 
 import torch
@@ -16,12 +16,12 @@ from ..experts import ExpertFactory, ExpertBlock, BaseExpert
 
 class ExpansionManager:
     """
-    Décide quand et comment étendre le modèle.
+    Decides when and how to expand the model.
 
-    Triggers d'expansion basés sur:
-    1. Score de saturation combiné (gradient flow + activations)
-    2. Loss stagnante
-    3. Vote des variantes
+    Expansion triggers based on:
+    1. Combined saturation score (gradient flow + activations)
+    2. Stagnant loss
+    3. Variant voting
     """
 
     def __init__(self, config: SystemConfig):
@@ -29,21 +29,20 @@ class ExpansionManager:
         self.last_expansion_cycle = -config.expansion_cooldown
         self.expansion_history: List[Tuple[int, str, str]] = []
 
-        # Tracking des blocs récemment créés (pour le warmup)
+        # Track recently created blocks for warmup phase tracking
         self.recently_created_blocks: Dict[str, int] = {}  # block_id -> creation_cycle
 
     def update_recent_usage(self, task_blocks: Dict[str, TaskBlock], current_cycle: int):
-        """Met à jour l'historique d'utilisation récente de tous les blocs."""
+        """Updates recent usage history for all blocks."""
         for block in task_blocks.values():
-            # Ajouter l'utilisation du cycle actuel
             block.recent_usage.append(block.usage_count)
 
-            # Garder seulement les N derniers cycles
+            # Keep only the N most recent cycles
             if len(block.recent_usage) > self.config.recent_usage_window:
                 block.recent_usage.pop(0)
 
     def get_most_used_block_recent(self, task_blocks: Dict[str, TaskBlock]) -> Optional[TaskBlock]:
-        """Retourne le bloc avec la plus grande utilisation récente (moyenne)."""
+        """Returns the block with the highest recent average usage."""
         if not task_blocks:
             return None
 
@@ -61,81 +60,81 @@ class ExpansionManager:
         current_cycle: int
     ) -> ExpansionDecision:
         """
-        Analyse les métriques de saturation et décide si une expansion est nécessaire.
+        Analyzes saturation metrics and decides if expansion is needed.
 
-        Utilise les métriques détaillées:
-        - Gradient flow ratio (signal qui ne passe plus)
-        - Activation saturation (neurones au max)
-        - Dead neuron ratio (neurones inutiles)
+        Uses detailed metrics:
+        - Gradient flow ratio (signal flow blockage)
+        - Activation saturation (saturated neurons)
+        - Dead neuron ratio (inactive neurons)
         """
-        # --- Vérifier le cooldown ---
+        # Check cooldown period
         cycles_since_last = current_cycle - self.last_expansion_cycle
         if cycles_since_last < self.config.expansion_cooldown:
             return ExpansionDecision(
                 should_expand=False,
-                reason=f"Cooldown actif ({cycles_since_last}/{self.config.expansion_cooldown} cycles)"
+                reason=f"Cooldown active ({cycles_since_last}/{self.config.expansion_cooldown} cycles)"
             )
 
-        # --- Vérifier le nombre minimum de cycles ---
+        # Verify minimum cycles requirement
         if current_cycle < self.config.min_cycles_before_expand:
             return ExpansionDecision(
                 should_expand=False,
-                reason=f"Historique insuffisant ({current_cycle}/{self.config.min_cycles_before_expand} cycles)"
+                reason=f"Insufficient history ({current_cycle}/{self.config.min_cycles_before_expand} cycles)"
             )
 
-        # --- Analyser la saturation détaillée par bloc ---
+        # Analyze detailed saturation by block
         saturated_blocks = []
 
         for block_id, sat_metrics in metrics.detailed_saturation.items():
-            # Ignorer les blocs en période de warmup
+            # Skip blocks in warmup phase
             if block_id in self.recently_created_blocks:
                 creation_cycle = self.recently_created_blocks[block_id]
                 if current_cycle - creation_cycle < self.config.new_block_exploration_cycles:
                     continue
 
-            # Utiliser le score combiné
+            # Use combined saturation score
             if sat_metrics.combined_score > self.config.saturation_threshold:
                 saturated_blocks.append((block_id, sat_metrics))
 
-        # --- Cas 1: Blocs saturés → Expansion en largeur ---
+        # Case 1: Saturated blocks -> Width expansion
         if saturated_blocks:
-            # Trier par score de saturation décroissant
+            # Sort by descending saturation score
             saturated_blocks.sort(key=lambda x: x[1].combined_score, reverse=True)
             target_block_id, sat_metrics = saturated_blocks[0]
 
-            # Déterminer la raison principale
+            # Determine primary reasons for saturation
             reasons = []
             if sat_metrics.gradient_flow_ratio < 0.5:
-                reasons.append(f"gradient flow faible ({sat_metrics.gradient_flow_ratio:.1%})")
+                reasons.append(f"poor gradient flow ({sat_metrics.gradient_flow_ratio:.1%})")
             if sat_metrics.activation_saturation > 0.3:
-                reasons.append(f"activations saturées ({sat_metrics.activation_saturation:.1%})")
+                reasons.append(f"saturated activations ({sat_metrics.activation_saturation:.1%})")
             if sat_metrics.dead_neuron_ratio > 0.2:
-                reasons.append(f"neurones morts ({sat_metrics.dead_neuron_ratio:.1%})")
+                reasons.append(f"dead neurons ({sat_metrics.dead_neuron_ratio:.1%})")
 
-            reason_str = ", ".join(reasons) if reasons else "score combiné élevé"
+            reason_str = ", ".join(reasons) if reasons else "high combined score"
 
             return ExpansionDecision(
                 should_expand=True,
                 target_block_id=target_block_id,
                 expansion_type="width",
                 confidence=sat_metrics.combined_score,
-                reason=f"Bloc '{target_block_id}' saturé: {reason_str} (score={sat_metrics.combined_score:.2f})"
+                reason=f"Block '{target_block_id}' saturated: {reason_str} (score={sat_metrics.combined_score:.2f})"
             )
 
-        # --- Cas 2: Loss stagnante sans saturation → Nouveau bloc ---
+        # Case 2: Stagnant loss without saturation -> Create new block
         loss_trend = metrics.get_recent_loss_trend(window=10)
         if loss_trend is not None and loss_trend < 0.01:
             return ExpansionDecision(
                 should_expand=True,
                 expansion_type="new_block",
                 confidence=0.5,
-                reason=f"Loss stagnante (amélioration: {loss_trend:.2%}), capacité potentiellement insuffisante"
+                reason=f"Stagnant loss (improvement: {loss_trend:.2%}), insufficient capacity"
             )
 
-        # --- Pas besoin d'expansion ---
+        # No expansion needed
         return ExpansionDecision(
             should_expand=False,
-            reason="Pas de saturation ni de stagnation détectée"
+            reason="No saturation or stagnation detected"
         )
 
     def execute_expansion(
@@ -146,10 +145,10 @@ class ExpansionManager:
         device: torch.device = None
     ) -> bool:
         """
-        Exécute l'expansion décidée.
+        Executes the decided expansion.
 
         Returns:
-            True si l'expansion a réussi
+            True if expansion succeeded
         """
         if not decision.should_expand:
             return False
@@ -187,7 +186,7 @@ class ExpansionManager:
         block_id: str,
         task_blocks: Dict[str, TaskBlock]
     ) -> bool:
-        """Ajoute des neurones aux experts d'un bloc."""
+        """Adds neurons to experts in a block (width expansion)."""
         if block_id not in task_blocks:
             return False
 
@@ -207,7 +206,7 @@ class ExpansionManager:
         block_id: str,
         task_blocks: Dict[str, TaskBlock]
     ) -> bool:
-        """Ajoute une couche à un bloc."""
+        """Adds a layer to a block (depth expansion)."""
         if block_id not in task_blocks:
             return False
 
@@ -216,19 +215,18 @@ class ExpansionManager:
         if block.layers and isinstance(block.layers[-1], BaseExpert):
             last_expert = block.layers[-1]
 
-            # On récupère le type de l'expert précédent pour créer le même
-            # (Si c'était un CNN, on ajoute un CNN, etc.)
+            # Retrieve the type of the last expert to maintain consistency
             expert_type = getattr(last_expert, 'expert_type', 'mlp')
-            
-            # Créer un nouvel expert via la Factory
+
+            # Create new expert via Factory
             new_expert = ExpertFactory.create(
                 expert_type=expert_type,
-                input_dim=last_expert.output_dim,   # L'entrée est la sortie du précédent
-                hidden_dim=last_expert.output_dim,  # On garde la même largeur
-                output_dim=last_expert.output_dim,  # On garde la même sortie
+                input_dim=last_expert.output_dim,   # Input is output of previous layer
+                hidden_dim=last_expert.output_dim,  # Maintain same width
+                output_dim=last_expert.output_dim,  # Maintain same output dimension
                 name=f"{block_id}_expert_{len(block.layers)}",
                 config=self.config
-            ).to(last_expert.parameters().__next__().device) # Même device que le précédent
+            ).to(last_expert.parameters().__next__().device)  # Same device as previous
             
             block.layers.append(new_expert)
             block.update_param_count()
@@ -248,25 +246,25 @@ class ExpansionManager:
         task_type = TaskType.GENERIC
         expert_type = "mlp"
 
-        # LOGIQUE: Hériter du bloc le plus utilisé récemment
+        # Inherit from the most recently used block
         if task_blocks:
-            # Trouver le bloc avec la plus grande utilisation récente
+            # Find the block with highest recent usage
             most_used_block = self.get_most_used_block_recent(task_blocks)
 
             if most_used_block:
-                # Hériter du type et de l'expert type
+                # Inherit task type and expert type
                 task_type = most_used_block.task_type
                 if most_used_block.layers and isinstance(most_used_block.layers[0], BaseExpert):
                     expert_type = getattr(most_used_block.layers[0], 'expert_type', "mlp")
 
-            # Override: si target_id_hint est spécifié, l'utiliser en priorité
+            # Override: use target_id_hint if specified
             if target_id_hint and target_id_hint in task_blocks:
                 parent = task_blocks[target_id_hint]
                 task_type = parent.task_type
                 if parent.layers and isinstance(parent.layers[0], BaseExpert):
                     expert_type = getattr(parent.layers[0], 'expert_type', "mlp")
 
-        # Utilisation de la Factory
+        # Create expert via Factory
         expert = ExpertFactory.create(
             expert_type=expert_type,
             input_dim=self.config.input_dim,
@@ -288,14 +286,14 @@ class ExpansionManager:
         return new_id
 
     def is_in_warmup(self, block_id: str, current_cycle: int) -> bool:
-        """Vérifie si un bloc est en période de warmup."""
+        """Checks if a block is in warmup phase."""
         if block_id not in self.recently_created_blocks:
             return False
         creation_cycle = self.recently_created_blocks[block_id]
         return current_cycle - creation_cycle < self.config.new_block_exploration_cycles
 
     def get_warmup_blocks(self, current_cycle: int) -> List[str]:
-        """Retourne la liste des blocs en période de warmup."""
+        """Returns the list of blocks currently in warmup phase."""
         return [
             block_id for block_id, creation
             in self.recently_created_blocks.items()
@@ -303,7 +301,7 @@ class ExpansionManager:
         ]
 
     def get_expansion_stats(self) -> Dict:
-        """Retourne des statistiques sur les expansions."""
+        """Returns statistics about all expansions performed."""
         type_counts = {}
         for _, _, exp_type in self.expansion_history:
             type_counts[exp_type] = type_counts.get(exp_type, 0) + 1

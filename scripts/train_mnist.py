@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Training ACOC sur MNIST (Refactorisé)
-=====================================
-Classification de chiffres manuscrits 0-9.
+Training ACOC on MNIST (Refactored)
+===================================
+Handwritten digit classification 0-9.
 """
 
 import torch
@@ -36,7 +36,7 @@ class MNISTTrainer(BaseACOCTrainer):
     def get_dataloaders(self) -> tuple:
         transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,)),  # Normalisation standard MNIST
+            transforms.Normalize((0.1307,), (0.3081,)),  # Standard MNIST normalization
             transforms.Lambda(torch.flatten)
         ])
 
@@ -70,7 +70,7 @@ class MNISTTrainer(BaseACOCTrainer):
         return {
             "Input": "784 (28×28 grayscale)",
             "Hidden": 256,
-            "Classes": "Chiffres 0-9"
+            "Classes": "Digits 0-9"
         }
 
 

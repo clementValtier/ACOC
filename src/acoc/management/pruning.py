@@ -1,7 +1,7 @@
 """
 ACOC - Pruning Manager
 ======================
-Gère la suppression et consolidation des blocs inutilisés.
+Manages removal and consolidation of unused blocks.
 """
 
 from typing import Dict, List, Tuple, Optional, Set
@@ -11,7 +11,7 @@ from ..config import SystemConfig, TaskBlock
 
 class PruningManager:
     """
-    Gère la suppression et consolidation des blocs inutilisés.
+    Manages removal and consolidation of unused task blocks.
     """
 
     def __init__(self, config: SystemConfig):
@@ -25,7 +25,7 @@ class PruningManager:
         protected_blocks: Set[str] = None
     ) -> List[str]:
         """
-        Identifie les blocs qui n'ont pas été utilisés depuis longtemps.
+        Identifies blocks that haven't been used for a long time.
         """
         if protected_blocks is None:
             protected_blocks = set()
@@ -49,7 +49,7 @@ class PruningManager:
         task_blocks: Dict[str, TaskBlock]
     ) -> List[Tuple[str, str, float]]:
         """
-        Trouve les paires de blocs suffisamment similaires pour être fusionnés.
+        Finds pairs of blocks similar enough to be consolidated.
         """
         similar_pairs = []
         block_ids = list(task_blocks.keys())
@@ -74,7 +74,7 @@ class PruningManager:
         block1: TaskBlock,
         block2: TaskBlock
     ) -> float:
-        """Calcule la similarité entre deux blocs."""
+        """Computes similarity score between two blocks."""
         size_ratio = min(block1.num_params, block2.num_params) / \
                      max(block1.num_params, block2.num_params)
 
@@ -94,7 +94,7 @@ class PruningManager:
         block_id: str,
         current_cycle: int
     ) -> bool:
-        """Supprime un bloc."""
+        """Removes a block from the system."""
         if block_id in task_blocks:
             del task_blocks[block_id]
             self.pruning_history.append((current_cycle, block_id, "pruned"))
@@ -108,7 +108,7 @@ class PruningManager:
         block_id_2: str,
         current_cycle: int
     ) -> Optional[str]:
-        """Fusionne deux blocs en un seul."""
+        """Merges two blocks into one."""
         if block_id_1 not in task_blocks or block_id_2 not in task_blocks:
             return None
 
@@ -135,19 +135,19 @@ class PruningManager:
         current_cycle: int,
         protected_blocks: Set[str] = None
     ) -> Dict[str, List[str]]:
-        """Exécute un cycle complet de maintenance."""
+        """Executes a complete maintenance cycle."""
         if protected_blocks is None:
             protected_blocks = set()
 
         actions = {"pruned": [], "consolidated": []}
 
-        # 1. Identifier et supprimer les blocs inutilisés
+        # 1. Identify and prune unused blocks
         unused = self.identify_unused_blocks(task_blocks, current_cycle, protected_blocks)
         for block_id in unused:
             if self.prune_block(task_blocks, block_id, current_cycle):
                 actions["pruned"].append(block_id)
 
-        # 2. Consolider les blocs similaires (max 1 par cycle)
+        # 2. Consolidate similar blocks (max 1 per cycle)
         similar = self.find_similar_blocks(task_blocks)
         similar = [(a, b, s) for a, b, s in similar
                    if a not in protected_blocks and b not in protected_blocks]

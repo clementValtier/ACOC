@@ -1,8 +1,8 @@
 """
-ACOC - Structures de Données
+ACOC - Data Structures
 ============================
-Définition des dataclasses et enums utilisés dans tout le système.
-Compatible PyTorch.
+Definition of dataclasses and enums used throughout the system.
+PyTorch compatible.
 """
 
 from dataclasses import dataclass, field
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class TaskType(Enum):
-    """Types de tâches supportées par le système."""
+    """Task types supported by the system."""
     TEXT = "text"
     IMAGE = "image"
     AUDIO = "audio"
@@ -24,41 +24,41 @@ class TaskType(Enum):
 @dataclass
 class SaturationMetrics:
     """
-    Métriques détaillées de saturation d'un expert/bloc.
-    Basé sur l'analyse du gradient flow et des activations.
+    Detailed saturation metrics for an expert/block.
+    Based on gradient flow and activation analysis.
     """
-    # Gradient flow: ratio de gradients "vivants" (> threshold)
+    # Gradient flow: ratio of "living" gradients (> threshold)
     gradient_flow_ratio: float = 1.0
 
-    # Saturation des activations: ratio de neurones saturés (> 0.95 * max)
+    # Activation saturation: ratio of saturated neurons (> 0.95 * max)
     activation_saturation: float = 0.0
 
-    # Ratio de neurones "morts" (toujours à 0 après ReLU)
+    # Ratio of "dead" neurons (always 0 after ReLU)
     dead_neuron_ratio: float = 0.0
 
-    # Variance inter-batch des activations (faible = saturé)
+    # Inter-batch variance of activations (low = saturated)
     activation_variance: float = 1.0
 
-    # Score combiné de saturation (0 = sain, 1 = saturé)
+    # Combined saturation score (0 = healthy, 1 = saturated)
     combined_score: float = 0.0
 
     def compute_combined_score(self) -> float:
         """
-        Calcule un score combiné de saturation.
+        Compute combined saturation score.
 
-        Logique:
-        - gradient_flow_ratio bas = bloqué
-        - activation_saturation haute = neurones au max
-        - dead_neuron_ratio haut = neurones inutiles
-        - activation_variance basse = pas de diversité
+        Logic:
+        - low gradient_flow_ratio = blocked
+        - high activation_saturation = neurons at max
+        - high dead_neuron_ratio = unused neurons
+        - low activation_variance = no diversity
         """
-        # Poids des différents facteurs
+        # Weights of different factors
         w_gradient = 0.35
         w_activation = 0.25
         w_dead = 0.20
         w_variance = 0.20
 
-        # Normaliser: on veut un score où 1 = problématique
+        # Normalize: we want a score where 1 = problematic
         gradient_problem = 1.0 - self.gradient_flow_ratio
         variance_problem = 1.0 / (1.0 + self.activation_variance)
 
@@ -75,28 +75,28 @@ class SaturationMetrics:
 @dataclass
 class TaskBlock:
     """
-    Un bloc spécialisé pour une tâche ou sous-tâche.
-    Contient les layers (experts) et les métadonnées d'utilisation.
+    A block specialized for a task or sub-task.
+    Contains layers (experts) and usage metadata.
     """
     id: str
     task_type: TaskType
     num_params: int
-    layers: List[Any]  # nn.ModuleList en PyTorch
+    layers: List[Any]  # nn.ModuleList in PyTorch
     creation_cycle: int
     usage_count: int = 0
     last_used_cycle: int = 0
 
-    # Historique d'utilisation récente (list des N derniers cycles)
+    # Recent usage history (list of N last cycles)
     recent_usage: List[int] = field(default_factory=list)
 
-    # Métriques de saturation détaillées
+    # Detailed saturation metrics
     saturation: SaturationMetrics = field(default_factory=SaturationMetrics)
 
     def get_param_count(self) -> int:
         return self.num_params
 
     def update_param_count(self):
-        """Recalcule le nombre de paramètres basé sur les layers."""
+        """Recalculate parameter count based on layers."""
         self.num_params = sum(
             p.numel() for layer in self.layers
             for p in layer.parameters()
@@ -106,8 +106,8 @@ class TaskBlock:
 @dataclass
 class ModelMetrics:
     """
-    Métriques collectées pendant le training.
-    Utilisées pour les décisions d'expansion.
+    Metrics collected during training.
+    Used for expansion decisions.
     """
     loss_history: List[float] = field(default_factory=list)
     validation_scores: List[float] = field(default_factory=list)
@@ -116,7 +116,7 @@ class ModelMetrics:
     validation_accuracy: float = 0.0
     saturation_scores: Dict[str, float] = field(default_factory=dict)
 
-    # Nouvelles métriques détaillées
+    # Detailed saturation metrics
     detailed_saturation: Dict[str, SaturationMetrics] = field(default_factory=dict)
 
     def add_loss(self, loss: float):
@@ -126,7 +126,7 @@ class ModelMetrics:
         self.validation_scores.append(score)
 
     def get_recent_loss_trend(self, window: int = 10) -> Optional[float]:
-        """Retourne l'amélioration relative de la loss sur les N derniers cycles."""
+        """Returns relative loss improvement over the last N cycles."""
         if len(self.loss_history) < window:
             return None
         recent = self.loss_history[-window:]
@@ -136,21 +136,21 @@ class ModelMetrics:
 
     def get_relative_performance_threshold(self, lookback: int = 5) -> float:
         """
-        Calcule un seuil de performance relatif basé sur l'historique.
-        Utilisé pour le vote des variantes.
+        Compute relative performance threshold based on history.
+        Used for variant voting.
         """
         if len(self.validation_scores) < lookback:
-            # Pas assez d'historique, utiliser un seuil par défaut bas
+            # Not enough history, use default low threshold
             return 0.3
 
         recent_avg = sum(self.validation_scores[-lookback:]) / lookback
-        # Le seuil est 95% de la moyenne récente
+        # Threshold is 95% of recent average
         return recent_avg * 0.95
 
 
 @dataclass
 class ExpansionDecision:
-    """Résultat d'une décision d'expansion."""
+    """Result of an expansion decision."""
     should_expand: bool
     target_block_id: Optional[str] = None
     expansion_type: str = "none"  # "width", "depth", "new_block"
@@ -160,7 +160,7 @@ class ExpansionDecision:
 
 @dataclass
 class TrainingLog:
-    """Log d'un cycle de training."""
+    """Log of a training cycle."""
     cycle: int
     avg_loss: Optional[float]
     total_params: int

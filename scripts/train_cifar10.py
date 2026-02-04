@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Training ACOC sur CIFAR-10 (Refactorisé)
-========================================
-Version refactorisée utilisant BaseACOCTrainer.
+Training ACOC on CIFAR-10 (Refactored)
+======================================
+Refactored version using BaseACOCTrainer.
 """
 
 import torch
@@ -37,7 +37,7 @@ class CIFAR10Trainer(BaseACOCTrainer):
         )
 
     def get_dataloaders(self) -> tuple:
-        # Normalisation standard CIFAR-10
+        # Standard CIFAR-10 normalization
         transform_train = transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.RandomCrop(32, padding=4),

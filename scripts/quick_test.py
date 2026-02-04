@@ -2,7 +2,7 @@
 """
 Quick Test - ACOC
 =================
-Test rapide pour valider que la boucle de base fonctionne.
+Quick test to validate that the basic loop works.
 """
 
 import torch
@@ -12,7 +12,7 @@ from acoc import ACOCModel, ACOCTrainer, SystemConfig
 
 
 def create_synthetic_data(num_samples=200, input_dim=256, output_dim=256, batch_size=32):
-    """Crée des données synthétiques pour le test."""
+    """Create synthetic data for testing."""
     X = torch.randn(num_samples, input_dim)
     y = torch.randn(num_samples, output_dim)
     dataset = TensorDataset(X, y)
@@ -24,49 +24,49 @@ def main():
     print("ACOC - Quick Test")
     print("=" * 70)
 
-    # Configuration minimale
+    # Minimal configuration
     config = SystemConfig(
         device='cpu',
         input_dim=256,
         hidden_dim=128,
         output_dim=256,
-        num_variants=3,  # Réduit pour être plus rapide
+        num_variants=3,  # Reduced for faster execution
         saturation_threshold=0.55,
         min_cycles_before_expand=2,
         expansion_cooldown=3,
         performance_threshold_ratio=0.90
     )
 
-    print(f"\n✓ Configuration créée")
+    print(f"\n✓ Configuration created")
     print(f"  - Device: {config.device}")
     print(f"  - Hidden dim: {config.hidden_dim}")
     print(f"  - Variants: {config.num_variants}")
 
-    # Données
+    # Data
     train_loader = create_synthetic_data(num_samples=200)
     val_loader = create_synthetic_data(num_samples=50)
 
-    print(f"✓ Données synthétiques créées")
+    print(f"✓ Synthetic data created")
     print(f"  - Train: 200 samples")
     print(f"  - Val: 50 samples")
 
-    # Modèle
+    # Model
     model = ACOCModel(config)
     initial_params = model.get_total_params()
 
-    print(f"✓ Modèle créé")
-    print(f"  - Paramètres initiaux: {initial_params:,}")
-    print(f"  - Blocs initiaux: {len(model.task_blocks)}")
+    print(f"✓ Model created")
+    print(f"  - Initial parameters: {initial_params:,}")
+    print(f"  - Initial blocks: {len(model.task_blocks)}")
 
     # Trainer
     trainer = ACOCTrainer(model, config, learning_rate=0.001)
 
-    print(f"✓ Trainer créé")
+    print(f"✓ Trainer created")
     print(f"  - Learning rate: 0.001")
 
-    # Test rapide sur 5 cycles
+    # Quick test over 5 cycles
     print("\n" + "=" * 70)
-    print("Démarrage du test rapide (5 cycles)...")
+    print("Starting quick test (5 cycles)...")
     print("=" * 70)
 
     try:
@@ -77,11 +77,11 @@ def main():
             avg_loss = trainer.training_phase(train_loader, num_steps=10, verbose=False)
             print(f"  Training loss: {avg_loss:.4f}")
 
-            # Checkpoint (retourne tuple)
+            # Checkpoint (returns tuple)
             should_expand, confidence, reason = trainer.checkpoint_phase(val_loader, verbose=False)
             print(f"  Saturation: max={max(model.metrics.saturation_scores.values(), default=0):.2%}")
 
-            # Décision (combine checkpoint + métriques)
+            # Decision (combines checkpoint + metrics)
             decision = trainer.decision_phase(
                 variant_vote=should_expand,
                 variant_confidence=confidence,
@@ -92,34 +92,34 @@ def main():
                 print(f"  → Expansion: {decision.expansion_type} (confidence: {decision.confidence:.2f})")
                 trainer.expansion_phase(decision, verbose=False)
 
-                # Warmup si nécessaire
+                # Warmup if necessary
                 if trainer.model.warmup_manager.is_warmup_active():
                     trainer.warmup_phase(train_loader, num_steps=20, verbose=False)
-                    print(f"  → Warmup effectué")
+                    print(f"  → Warmup performed")
             else:
-                print(f"  → Pas d'expansion ({decision.reason[:50]}...)")
+                print(f"  → No expansion ({decision.reason[:50]}...)")
 
-        # Résultats finaux
+        # Final results
         print("\n" + "=" * 70)
-        print("Test terminé avec succès!")
+        print("Test completed successfully!")
         print("=" * 70)
 
         final_params = model.get_total_params()
-        print(f"\n✓ Résultats:")
-        print(f"  - Paramètres: {initial_params:,} → {final_params:,} ({final_params - initial_params:+,})")
-        print(f"  - Blocs: {len(model.task_blocks)}")
+        print(f"\n✓ Results:")
+        print(f"  - Parameters: {initial_params:,} → {final_params:,} ({final_params - initial_params:+,})")
+        print(f"  - Blocks: {len(model.task_blocks)}")
         print(f"  - Expansions: {len(model.expansion_manager.expansion_history)}")
 
         if model.expansion_manager.expansion_history:
-            print(f"\n  Historique des expansions:")
+            print(f"\n  Expansion history:")
             for cycle, target, exp_type in model.expansion_manager.expansion_history:
-                print(f"    • Cycle {cycle}: {exp_type} sur {target}")
+                print(f"    • Cycle {cycle}: {exp_type} on {target}")
 
-        print("\n✅ Tous les tests passés!")
+        print("\n✅ All tests passed!")
         return 0
 
     except Exception as e:
-        print(f"\n❌ Erreur pendant le test: {e}")
+        print(f"\n❌ Error during test: {e}")
         import traceback
         traceback.print_exc()
         return 1

@@ -1,7 +1,7 @@
 """
 ACOC - Gradient Flow Monitor
 ============================
-Moniteur de gradient flow pour détecter les blocages dans le réseau.
+Monitors gradient flow to detect blockages in the network.
 """
 
 import torch
@@ -11,12 +11,12 @@ from collections import deque
 
 class GradientFlowMonitor:
     """
-    Moniteur de gradient flow pour détecter les blocages.
+    Monitors gradient flow to detect blockages.
 
-    Analyse:
-    - Magnitude des gradients par couche
-    - Ratio de gradients "vivants"
-    - Détection de vanishing/exploding gradients
+    Analyzes:
+    - Gradient magnitude per layer
+    - Ratio of "alive" gradients
+    - Detection of vanishing/exploding gradients
     """
 
     def __init__(self, threshold: float = 1e-6, history_size: int = 100):
@@ -25,12 +25,12 @@ class GradientFlowMonitor:
         self.gradient_history: Dict[str, deque] = {}
 
     def register_layer(self, name: str):
-        """Enregistre une couche à monitorer."""
+        """Registers a layer for gradient flow monitoring."""
         if name not in self.gradient_history:
             self.gradient_history[name] = deque(maxlen=self.history_size)
 
     def record_gradients(self, name: str, gradients: torch.Tensor):
-        """Enregistre les gradients d'une couche."""
+        """Records gradients for a layer."""
         if name not in self.gradient_history:
             self.register_layer(name)
 
@@ -45,9 +45,9 @@ class GradientFlowMonitor:
 
     def get_flow_ratio(self, name: str) -> float:
         """
-        Retourne le ratio de gradients vivants (moyenne récente).
-        1.0 = tous les gradients circulent bien
-        0.0 = gradient flow bloqué
+        Returns the ratio of alive gradients (recent average).
+        1.0 = all gradients flowing well
+        0.0 = gradient flow blocked
         """
         if name not in self.gradient_history or len(self.gradient_history[name]) == 0:
             return 1.0
@@ -57,5 +57,5 @@ class GradientFlowMonitor:
         return avg_alive
 
     def get_all_flow_ratios(self) -> Dict[str, float]:
-        """Retourne les ratios pour toutes les couches."""
+        """Returns flow ratios for all layers."""
         return {name: self.get_flow_ratio(name) for name in self.gradient_history}

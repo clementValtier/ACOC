@@ -1,8 +1,8 @@
 """
-ACOC - Système de Variantes (PyTorch)
-=====================================
-Gestion des 5 variantes avec deltas légers pour le vote et le model averaging.
-Utilise un seuil RELATIF basé sur l'historique des performances.
+ACOC - Variant System (PyTorch)
+===============================
+Manages 5 variants with lightweight deltas for voting and model averaging.
+Uses a RELATIVE threshold based on performance history.
 """
 
 import torch
@@ -15,14 +15,14 @@ from ..config import SystemConfig, ModelMetrics
 
 class VariantSystem:
     """
-    Gère les 5 variantes avec poids légèrement différents.
+    Manages 5 variants with slightly different weights.
 
-    CHANGEMENT MAJEUR: Utilise un seuil de performance RELATIF
-    basé sur l'historique récent, pas un seuil fixe.
+    MAJOR CHANGE: Uses a RELATIVE performance threshold
+    based on recent history, not a fixed threshold.
 
-    Au lieu de maintenir 5 modèles complets, on stocke:
-    - 1 modèle de base
-    - 5 "deltas" (petites perturbations des poids)
+    Instead of maintaining 5 complete models, stores:
+    - 1 base model
+    - 5 "deltas" (small weight perturbations)
     """
 
     def __init__(self, config: SystemConfig, device: torch.device = None):
@@ -30,18 +30,18 @@ class VariantSystem:
         self.device = device or torch.device('cpu')
         self.deltas: List[Dict[str, torch.Tensor]] = []
 
-        # Historique des scores pour le seuil relatif
+        # History of scores for relative threshold calculation
         self.score_history: deque = deque(maxlen=20)
 
-        # Statistiques des votes
+        # Vote statistics
         self.vote_history: List[Tuple[bool, float, str]] = []
 
     def initialize_deltas(self, model: nn.Module):
         """
-        Crée N deltas aléatoires basés sur les poids du modèle.
+        Creates N random deltas based on model weights.
 
-        Les deltas sont de petites perturbations gaussiennes,
-        proportionnelles à la magnitude de chaque poids.
+        Deltas are small Gaussian perturbations,
+        proportional to the magnitude of each weight.
         """
         self.deltas = []
 
@@ -49,7 +49,7 @@ class VariantSystem:
             delta = {}
             for name, param in model.named_parameters():
                 if param.requires_grad:
-                    # Perturbation proportionnelle à l'écart-type des poids
+                    # Perturbation proportional to weight standard deviation
                     scale = self.config.delta_magnitude * (param.std().item() + 1e-8)
                     delta[name] = torch.randn_like(param) * scale
             self.deltas.append(delta)
@@ -60,8 +60,8 @@ class VariantSystem:
         delta_idx: int
     ) -> Dict[str, torch.Tensor]:
         """
-        Retourne un state_dict avec le delta appliqué.
-        Ne modifie PAS le modèle en place.
+        Returns a state_dict with delta applied.
+        Does NOT modify the model in place.
         """
         if delta_idx >= len(self.deltas):
             return model.state_dict()
@@ -79,19 +79,19 @@ class VariantSystem:
 
     def _get_relative_threshold(self) -> float:
         """
-        Calcule un seuil de performance RELATIF basé sur l'historique.
+        Computes a RELATIVE performance threshold based on history.
 
-        Logique:
-        - Si on a peu d'historique, seuil bas (0.3)
-        - Sinon, seuil = 95% de la moyenne récente
+        Logic:
+        - If insufficient history, use low threshold (0.3)
+        - Otherwise, threshold = 95% of recent average
         """
         if len(self.score_history) < 3:
-            return 0.3  # Seuil initial bas
+            return 0.3  # Initial low threshold
 
         recent_scores = list(self.score_history)[-5:]
         avg_score = sum(recent_scores) / len(recent_scores)
 
-        # Le seuil est ratio * moyenne récente
+        # Threshold is ratio * recent average
         threshold = self.config.performance_threshold_ratio * avg_score
 
         return threshold
@@ -102,31 +102,31 @@ class VariantSystem:
         evaluate_fn: Callable[[nn.Module], float],
     ) -> List[Tuple[int, float]]:
         """
-        Évalue toutes les variantes.
+        Evaluates all variants.
 
         Args:
-            model: Modèle de base
-            evaluate_fn: Fonction (model) -> score
+            model: Base model
+            evaluate_fn: Function (model) -> score
 
         Returns:
-            Liste de (index, score) triée par score décroissant
+            List of (index, score) sorted by descending score
         """
         original_state = {k: v.clone() for k, v in model.state_dict().items()}
         scored_variants = []
 
         for i in range(len(self.deltas)):
-            # Appliquer le delta
+            # Apply delta
             variant_state = self.apply_delta(model, i)
             model.load_state_dict(variant_state)
 
-            # Évaluer
+            # Evaluate
             score = evaluate_fn(model)
             scored_variants.append((i, score))
 
-        # Restaurer les poids originaux
+        # Restore original weights
         model.load_state_dict(original_state)
 
-        # Trier par score décroissant
+        # Sort by descending score
         scored_variants.sort(key=lambda x: x[1], reverse=True)
 
         return scored_variants
@@ -138,58 +138,58 @@ class VariantSystem:
         metrics: ModelMetrics
     ) -> Tuple[bool, float, str]:
         """
-        Chaque variante vote sur la nécessité d'expansion.
+        Each variant votes on whether expansion is needed.
 
-        CHANGEMENT: Utilise un seuil RELATIF basé sur l'historique,
-        pas un seuil fixe de 0.7.
+        CHANGE: Uses a RELATIVE threshold based on history,
+        not a fixed 0.7 threshold.
 
         Returns:
             (should_expand, confidence, reason)
         """
         scored_variants = self.evaluate_variants(model, evaluate_fn)
 
-        # Ajouter le meilleur score à l'historique
+        # Add best score to history
         best_score = scored_variants[0][1] if scored_variants else 0.0
         self.score_history.append(best_score)
 
-        # Calculer le seuil relatif
+        # Calculate relative threshold
         threshold = self._get_relative_threshold()
 
-        # Aussi utiliser le seuil des métriques si disponible
+        # Also use metrics threshold if available
         metrics_threshold = metrics.get_relative_performance_threshold()
-        # Prendre le max des deux (plus conservateur)
+        # Take max of both (more conservative)
         final_threshold = max(threshold, metrics_threshold)
 
-        # Compter les votes
+        # Count votes
         expansion_votes = []
         for idx, score in scored_variants:
             votes_expand = score < final_threshold
             expansion_votes.append(votes_expand)
 
-        # Consensus: majorité simple
+        # Consensus: simple majority
         expand_count = sum(expansion_votes)
         total = len(expansion_votes)
         should_expand = expand_count > total // 2
         confidence = expand_count / total if total > 0 else 0.0
 
-        # Générer la raison détaillée
+        # Generate detailed reason
         avg_score = sum(s for _, s in scored_variants) / len(scored_variants) if scored_variants else 0
         worst_score = scored_variants[-1][1] if scored_variants else 0
 
         if should_expand:
             reason = (
-                f"Vote majoritaire POUR expansion ({expand_count}/{total}). "
-                f"Seuil relatif: {final_threshold:.3f}, "
-                f"Score moyen: {avg_score:.3f}, min: {worst_score:.3f}"
+                f"Majority vote FOR expansion ({expand_count}/{total}). "
+                f"Relative threshold: {final_threshold:.3f}, "
+                f"Average score: {avg_score:.3f}, min: {worst_score:.3f}"
             )
         else:
             reason = (
-                f"Vote majoritaire CONTRE expansion ({total - expand_count}/{total}). "
-                f"Seuil relatif: {final_threshold:.3f}, "
-                f"Score moyen: {avg_score:.3f}, max: {best_score:.3f}"
+                f"Majority vote AGAINST expansion ({total - expand_count}/{total}). "
+                f"Relative threshold: {final_threshold:.3f}, "
+                f"Average score: {avg_score:.3f}, max: {best_score:.3f}"
             )
 
-        # Sauvegarder dans l'historique
+        # Save to history
         self.vote_history.append((should_expand, confidence, reason))
 
         return should_expand, confidence, reason
@@ -201,30 +201,30 @@ class VariantSystem:
         top_k: Optional[int] = None
     ):
         """
-        Sélectionne les top-k deltas et les fusionne dans le modèle.
+        Selects top-k deltas and merges them into the model.
 
-        Modifie le modèle EN PLACE.
+        Modifies the model IN PLACE.
         """
         if top_k is None:
             top_k = self.config.top_k_merge
 
-        # Évaluer et trier
+        # Evaluate and sort
         scored_variants = self.evaluate_variants(model, evaluate_fn)
 
-        # Sélectionner les top-k
+        # Select top-k
         top_indices = [idx for idx, _ in scored_variants[:top_k]]
         top_deltas = [self.deltas[i] for i in top_indices]
 
         if not top_deltas:
             return
 
-        # Moyenne des deltas
+        # Average deltas
         merged_delta = {}
         for name in top_deltas[0].keys():
             stacked = torch.stack([d[name] for d in top_deltas])
             merged_delta[name] = stacked.mean(dim=0)
 
-        # Appliquer le delta fusionné
+        # Apply merged delta
         with torch.no_grad():
             for name, param in model.named_parameters():
                 if name in merged_delta:
@@ -236,20 +236,20 @@ class VariantSystem:
         scores: List[Tuple[int, float]]
     ):
         """
-        Fusion pondérée par les scores de performance.
-        Les variantes avec de meilleurs scores contribuent plus.
+        Weighted merge based on performance scores.
+        Variants with better scores contribute more.
 
-        Modifie le modèle EN PLACE.
+        Modifies the model IN PLACE.
         """
         if not scores:
             return
 
-        # Normaliser les scores en poids via softmax
+        # Normalize scores to weights via softmax
         score_values = torch.tensor([s for _, s in scores])
-        score_values = score_values - score_values.max()  # Stabilité
-        weights = torch.softmax(score_values * 5, dim=0)  # Température = 0.2
+        score_values = score_values - score_values.max()  # Numerical stability
+        weights = torch.softmax(score_values * 5, dim=0)  # Temperature = 0.2
 
-        # Moyenne pondérée des deltas
+        # Weighted average of deltas
         merged_delta = {}
         first_idx = scores[0][0]
 
@@ -259,7 +259,7 @@ class VariantSystem:
                 weighted_sum += w.item() * self.deltas[idx][name]
             merged_delta[name] = weighted_sum
 
-        # Appliquer
+        # Apply
         with torch.no_grad():
             for name, param in model.named_parameters():
                 if name in merged_delta:
@@ -272,28 +272,28 @@ class VariantSystem:
         mutation_rate: float = 0.1
     ):
         """
-        Fait évoluer les deltas: garde les meilleurs, mute les pires.
+        Evolves deltas: keeps best, mutates worst.
 
-        Approche évolutionnaire légère pour explorer l'espace des poids.
+        Lightweight evolutionary approach to explore weight space.
         """
         if len(scores) < 2:
             return
 
-        # Indices triés par score
+        # Indices sorted by score
         sorted_indices = [idx for idx, _ in scores]
 
-        # Les 2 pires héritent des 2 meilleurs (avec mutation)
+        # Worst 2 inherit from best 2 (with mutation)
         num_to_replace = min(2, len(sorted_indices) // 2)
 
         for i in range(num_to_replace):
             worst_idx = sorted_indices[-(i + 1)]
             best_idx = sorted_indices[i]
 
-            # Copier le meilleur vers le pire
+            # Copy best to worst
             for name in self.deltas[worst_idx].keys():
                 self.deltas[worst_idx][name] = self.deltas[best_idx][name].clone()
 
-                # Ajouter une mutation
+                # Add mutation
                 param = dict(model.named_parameters()).get(name)
                 if param is not None:
                     mutation = torch.randn_like(self.deltas[worst_idx][name])
@@ -301,7 +301,7 @@ class VariantSystem:
                     self.deltas[worst_idx][name] += mutation
 
     def get_vote_summary(self) -> Dict:
-        """Retourne un résumé des votes passés."""
+        """Returns a summary of past votes."""
         if not self.vote_history:
             return {"total": 0, "expand_votes": 0, "avg_confidence": 0}
 

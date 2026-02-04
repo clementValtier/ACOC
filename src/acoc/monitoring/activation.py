@@ -1,7 +1,7 @@
 """
 ACOC - Activation Monitor
 =========================
-Moniteur de saturation des activations pour détecter les neurones saturés/morts.
+Monitors activation saturation to detect saturated and dead neurons.
 """
 
 import torch
@@ -11,12 +11,12 @@ from collections import deque
 
 class ActivationMonitor:
     """
-    Moniteur de saturation des activations.
+    Monitors activation saturation across layers.
 
-    Détecte:
-    - Neurones saturés (toujours au max)
-    - Neurones morts (toujours à 0)
-    - Variance des activations
+    Detects:
+    - Saturated neurons (always at max)
+    - Dead neurons (always at 0)
+    - Activation variance
     """
 
     def __init__(
@@ -31,23 +31,23 @@ class ActivationMonitor:
         self.activation_history: Dict[str, deque] = {}
 
     def register_layer(self, name: str):
-        """Enregistre une couche à monitorer."""
+        """Registers a layer for activation monitoring."""
         if name not in self.activation_history:
             self.activation_history[name] = deque(maxlen=self.history_size)
 
     def record_activations(self, name: str, activations: torch.Tensor):
-        """Enregistre les activations d'une couche."""
+        """Records activations for a layer."""
         if name not in self.activation_history:
             self.register_layer(name)
 
         with torch.no_grad():
-            # Flatten si nécessaire
+            # Flatten if necessary
             act = activations.view(activations.size(0), -1)  # [batch, neurons]
 
-            # Statistiques par neurone (moyennées sur le batch)
+            # Per-neuron statistics (averaged over batch)
             neuron_means = act.mean(dim=0)  # [neurons]
 
-            # Théorique max pour ReLU (estimation basée sur les données)
+            # Estimated max for ReLU (based on actual data)
             estimated_max = act.max().item() if act.max().item() > 0 else 1.0
 
             stats = {
@@ -61,7 +61,7 @@ class ActivationMonitor:
 
     def get_saturation_metrics(self, name: str) -> Tuple[float, float, float]:
         """
-        Retourne (saturation_ratio, dead_ratio, variance) pour une couche.
+        Returns (saturation_ratio, dead_ratio, variance) for a layer.
         """
         if name not in self.activation_history or len(self.activation_history[name]) == 0:
             return 0.0, 0.0, 1.0

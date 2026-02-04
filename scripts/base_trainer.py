@@ -2,8 +2,8 @@
 """
 Base Trainer for ACOC
 =====================
-Classe de base pour factoriser le code de training commun.
-Les trainers spécifiques héritent de cette classe.
+Base class for factoring out common training code.
+Specific trainers inherit from this class.
 """
 
 import torch
@@ -16,8 +16,8 @@ from acoc import ACOCModel, ACOCTrainer, SystemConfig
 
 class BaseACOCTrainer(ABC):
     """
-    Classe de base pour tous les trainers ACOC.
-    Factorise le code commun et définit l'interface.
+    Base class for all ACOC trainers.
+    Factors out common code and defines the interface.
     """
 
     def __init__(self, num_cycles: int = 50, batch_size: int = 128):
@@ -27,31 +27,31 @@ class BaseACOCTrainer(ABC):
 
     @abstractmethod
     def get_config(self) -> SystemConfig:
-        """Retourne la config spécifique au dataset."""
+        """Return dataset-specific configuration."""
         pass
 
     @abstractmethod
     def get_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
-        """Retourne (train_loader, test_loader)."""
+        """Return (train_loader, test_loader)."""
         pass
 
     @abstractmethod
     def get_class_names(self) -> List[str]:
-        """Retourne les noms des classes."""
+        """Return class names."""
         pass
 
     @abstractmethod
     def get_dataset_name(self) -> str:
-        """Retourne le nom du dataset (pour sauvegarde)."""
+        """Return dataset name (for saving)."""
         pass
 
     @abstractmethod
     def get_dataset_info(self) -> Dict[str, Any]:
-        """Retourne les infos à afficher (input_dim, etc.)."""
+        """Return information to display (input_dim, etc.)."""
         pass
 
     def _get_device(self) -> str:
-        """Détecte le meilleur device disponible."""
+        """Detect the best available device."""
         if torch.backends.mps.is_available():
             return 'mps'
         elif torch.cuda.is_available():
@@ -60,7 +60,7 @@ class BaseACOCTrainer(ABC):
             return 'cpu'
 
     def print_header(self):
-        """Affiche le header de début."""
+        """Display startup header."""
         print("=" * 70)
         print(f"ACOC Training sur {self.get_dataset_name()}")
         print(f"Device: {self.device}")
@@ -72,27 +72,27 @@ class BaseACOCTrainer(ABC):
         print()
 
     def run(self):
-        """Lance le training complet."""
+        """Run complete training."""
         self.print_header()
 
-        # Préparation
+        # Preparation
         config = self.get_config()
         train_loader, test_loader = self.get_dataloaders()
         class_names = self.get_class_names()
 
-        print("📥 Chargement des données...")
+        print("📥 Loading data...")
         print(f"  - Train: {len(train_loader.dataset)} samples")
         print(f"  - Test: {len(test_loader.dataset)} samples")
         print()
 
-        # Création du modèle
+        # Model creation
         model = ACOCModel(config)
-        print(f"✓ Modèle créé: {model.get_total_params():,} paramètres")
+        print(f"✓ Model created: {model.get_total_params():,} parameters")
         print()
 
         # Training
         print("=" * 70)
-        print(f"Démarrage du training ({self.num_cycles} cycles)")
+        print(f"Starting training ({self.num_cycles} cycles)")
         print("=" * 70)
 
         trainer = ACOCTrainer(model, config, learning_rate=0.001)
@@ -104,13 +104,13 @@ class BaseACOCTrainer(ABC):
             verbose=True
         )
 
-        # Sauvegarde du modèle
+        # Model saving
         save_path = f"acoc_{self.get_dataset_name()}.pth"
         torch.save(model.state_dict(), save_path)
-        print(f"\n💾 Modèle sauvegardé: {save_path}")
+        print(f"\n💾 Model saved: {save_path}")
 
-        # Évaluation finale
-        print(f"\n📊 Évaluation finale...")
+        # Final evaluation
+        print(f"\n📊 Final evaluation...")
         model.eval()
         correct = 0
         total = 0
@@ -127,15 +127,15 @@ class BaseACOCTrainer(ABC):
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-                # Par classe
+                # Per class
                 for i in range(len(labels)):
                     label = labels[i]
                     class_correct[label] += (predicted[i] == label).item()
                     class_total[label] += 1
 
         accuracy = 100 * correct / total
-        print(f"  Accuracy globale: {accuracy:.2f}%")
-        print(f"\n  Précision par classe:")
+        print(f"  Global accuracy: {accuracy:.2f}%")
+        print(f"\n  Per-class precision:")
         for i, name in enumerate(class_names):
             if class_total[i] > 0:
                 acc = 100 * class_correct[i] / class_total[i]
@@ -143,19 +143,19 @@ class BaseACOCTrainer(ABC):
 
         print()
         print("=" * 70)
-        print("✅ Training terminé!")
+        print("✅ Training completed!")
         print("=" * 70)
 
 class OneHotCollate:
     """
-    Classe callable pour le one-hot encoding.
-    Nécessaire pour être 'picklable' par le DataLoader avec num_workers > 0.
+    Callable class for one-hot encoding.
+    Necessary to be 'picklable' by DataLoader with num_workers > 0.
     """
     def __init__(self, num_classes: int):
         self.num_classes = num_classes
 
     def __call__(self, batch):
-        """Convertit les labels en one-hot."""
+        """Convert labels to one-hot encoding."""
         data, labels = zip(*batch)
         data = torch.stack(data)
         labels = torch.tensor(labels)
@@ -165,5 +165,5 @@ class OneHotCollate:
         return data, labels_onehot
 
 def create_onehot_collate_fn(num_classes: int):
-    """Factory qui retourne une instance callable picklable."""
+    """Factory that returns a picklable callable instance."""
     return OneHotCollate(num_classes)

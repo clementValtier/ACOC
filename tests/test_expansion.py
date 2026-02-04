@@ -1,5 +1,5 @@
 """
-Tests pour la logique d'expansion du modèle.
+Tests for model expansion logic.
 """
 
 import torch
@@ -10,11 +10,11 @@ from acoc.experts import MLPExpert
 
 
 class TestExpansionManager:
-    """Tests pour ExpansionManager."""
+    """Tests for ExpansionManager."""
 
     @pytest.fixture
     def config(self):
-        """Configuration de test."""
+        """Test configuration."""
         return SystemConfig(
             saturation_threshold=0.6,
             min_cycles_before_expand=2,
@@ -24,12 +24,12 @@ class TestExpansionManager:
 
     @pytest.fixture
     def manager(self, config):
-        """Manager d'expansion pour les tests."""
+        """Expansion manager for tests."""
         return ExpansionManager(config)
 
     @pytest.fixture
     def task_blocks(self, config):
-        """Blocs de tâches pour les tests."""
+        """Task blocks for tests."""
         expert = MLPExpert(input_dim=256, hidden_dim=512, output_dim=256, name="test_expert", config=config)
         block = TaskBlock(
             id="test_block",
@@ -41,66 +41,66 @@ class TestExpansionManager:
         return {"test_block": block}
 
     def test_initialization(self, config):
-        """Test l'initialisation du manager."""
+        """Tests manager initialization."""
         manager = ExpansionManager(config)
         assert manager.config == config
         assert manager.last_expansion_cycle == -config.expansion_cooldown
         assert len(manager.expansion_history) == 0
 
     def test_cooldown_prevents_expansion(self, manager, task_blocks):
-        """Test que le cooldown empêche l'expansion."""
+        """Tests that cooldown prevents expansion."""
         metrics = ModelMetrics()
 
-        # Premier cycle
+        # First cycle
         decision = manager.evaluate_expansion_need(metrics, task_blocks, current_cycle=0)
         assert not decision.should_expand
-        assert "Historique insuffisant" in decision.reason
+        assert "Insufficient history" in decision.reason
 
     def test_saturation_triggers_expansion(self, manager, task_blocks):
-        """Test que la saturation déclenche une expansion."""
+        """Tests that saturation triggers expansion."""
         metrics = ModelMetrics()
 
-        # Créer des métriques de saturation élevée
+        # Create high saturation metrics
         sat_metrics = SaturationMetrics(
-            gradient_flow_ratio=0.3,  # Faible
-            activation_saturation=0.8,  # Élevée
-            dead_neuron_ratio=0.5,  # Élevée
-            activation_variance=0.1  # Faible
+            gradient_flow_ratio=0.3,  # Low
+            activation_saturation=0.8,  # High
+            dead_neuron_ratio=0.5,  # High
+            activation_variance=0.1  # Low
         )
         sat_metrics.compute_combined_score()
         metrics.detailed_saturation["test_block"] = sat_metrics
 
-        # Cycle suffisant
+        # Sufficient cycle
         decision = manager.evaluate_expansion_need(metrics, task_blocks, current_cycle=5)
         assert decision.should_expand
         assert decision.expansion_type == "width"
         assert decision.target_block_id == "test_block"
 
     def test_stagnant_loss_triggers_new_block(self, manager, task_blocks):
-        """Test que la loss stagnante déclenche un nouveau bloc."""
+        """Tests that stagnant loss triggers a new block."""
         metrics = ModelMetrics()
 
-        # Loss stagnante (amélioration < 1%)
+        # Stagnant loss (improvement < 1%)
         for i in range(15):
-            metrics.add_loss(2.9 + i * 0.0001)  # Amélioration minimale
+            metrics.add_loss(2.9 + i * 0.0001)  # Minimal improvement
 
         decision = manager.evaluate_expansion_need(metrics, task_blocks, current_cycle=15)
         assert decision.should_expand
         assert decision.expansion_type == "new_block"
 
     def test_expand_width(self, manager, task_blocks):
-        """Test l'expansion en largeur."""
+        """Tests width expansion."""
         initial_params = task_blocks["test_block"].num_params
 
         success = manager._expand_width("test_block", task_blocks)
         assert success
 
-        # Vérifier que le nombre de paramètres a augmenté
+        # Verify that parameter count increased
         new_params = task_blocks["test_block"].num_params
         assert new_params > initial_params
 
     def test_create_new_block(self, manager, task_blocks):
-        """Test la création d'un nouveau bloc."""
+        """Tests creation of a new block."""
         initial_count = len(task_blocks)
 
         new_id = manager._create_new_block(
@@ -115,7 +115,7 @@ class TestExpansionManager:
         assert task_blocks[new_id].creation_cycle == 5
 
     def test_expansion_history_tracking(self, manager, task_blocks):
-        """Test que l'historique des expansions est bien suivi."""
+        """Tests that expansion history is properly tracked."""
         manager.execute_expansion(
             decision=type('obj', (object,), {
                 'should_expand': True,

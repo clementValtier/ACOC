@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Training ACOC sur Fashion-MNIST (Refactorisé)
-=============================================
-Version refactorisée utilisant BaseACOCTrainer.
+Training ACOC on Fashion-MNIST (Refactored)
+==========================================
+Refactored version using BaseACOCTrainer.
 """
 
 import torch

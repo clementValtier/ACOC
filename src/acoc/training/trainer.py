@@ -1,8 +1,8 @@
 """
 ACOC - Trainer (PyTorch)
 ========================
-Orchestrateur de la boucle Training → Checkpoint → Décision → Expansion.
-Avec warmup après expansion et exploration forcée des nouveaux blocs.
+Orchestrator of the Training → Checkpoint → Decision → Expansion loop.
+With warmup after expansion and forced exploration of new blocks.
 """
 
 import torch
@@ -17,15 +17,15 @@ from ..model import ACOCModel
 
 class ACOCTrainer:
     """
-    Orchestrateur de la boucle d'entraînement ACOC.
-    
-    Cycle complet:
-    1. TRAINING: Architecture fixe, backprop normal
-    2. CHECKPOINT: Évaluation + vote des variantes (seuil relatif)
-    3. DÉCISION: Analyser métriques de saturation
-    4. EXPANSION: Modifier architecture si nécessaire
-    5. WARMUP: LR élevé + exploration forcée pour nouveaux blocs
-    6. MAINTENANCE: Pruning/consolidation périodique
+    ACOC training loop orchestrator.
+
+    Complete cycle:
+    1. TRAINING: Fixed architecture, normal backprop
+    2. CHECKPOINT: Evaluation + variant voting (relative threshold)
+    3. DECISION: Analyze saturation metrics
+    4. EXPANSION: Modify architecture if necessary
+    5. WARMUP: High LR + forced exploration for new blocks
+    6. MAINTENANCE: Periodic pruning/consolidation
     """
     
     def __init__(
@@ -38,23 +38,23 @@ class ACOCTrainer:
         self.config = config
         self.learning_rate = learning_rate
         self.training_logs: List[TrainingLog] = []
-        
+
         # Optimizer
         self.optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-        
-        # Callbacks optionnels
+
+        # Optional callbacks
         self.on_cycle_start: Optional[Callable[[int], None]] = None
         self.on_cycle_end: Optional[Callable[[int, TrainingLog], None]] = None
-        
-        # État du warmup
+
+        # Warmup state
         self._in_warmup = False
         self._warmup_steps_remaining = 0
         self._warmup_target_block: Optional[str] = None
-    
+
     def _rebuild_optimizer(self, lr_multipliers: Dict[str, float] = None):
         """
-        Reconstruit l'optimizer avec des LR différenciés.
-        Utilisé après expansion pour donner un LR plus élevé aux nouveaux params.
+        Rebuilds optimizer with differentiated LRs.
+        Used after expansion to give higher LR to new parameters.
         """
         if lr_multipliers is None:
             self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
@@ -71,39 +71,39 @@ class ACOCTrainer:
         self.optimizer = optim.Adam(param_groups)
     
     def training_phase(
-        self, 
+        self,
         data_loader: DataLoader = None,
         num_steps: int = 100,
         verbose: bool = True
     ) -> float:
         """
-        Phase de training avec architecture FIXE.
+        Training phase with FIXED architecture.
         """
         if verbose:
-            print(f"\n[Cycle {self.model.current_cycle}] === PHASE TRAINING ===")
-        
+            print(f"\n[Cycle {self.model.current_cycle}] === TRAINING PHASE ===")
+
         self.model.train()
         device = self.model.device
         losses = []
-        
-        # Gérer le warmup
+
+        # Handle warmup
         warmup_blocks = self.model.warmup_manager.get_warmup_blocks()
         if warmup_blocks:
-            # Activer l'exploration forcée
+            # Enable forced exploration
             target_block = warmup_blocks[0]
             self.model.set_exploration(
                 target_block,
                 self.config.new_block_exploration_prob
             )
             if verbose:
-                print(f"  [Warmup actif] Exploration forcée vers '{target_block}' "
+                print(f"  [Active warmup] Forced exploration towards '{target_block}' "
                       f"(prob={self.config.new_block_exploration_prob:.0%})")
         else:
             self.model.set_exploration(None, 0.0)
-        
+
         step = 0
         while step < num_steps:
-            # Obtenir un batch
+            # Get a batch
             if data_loader is not None:
                 for batch in data_loader:
                     if step >= num_steps:
@@ -118,27 +118,27 @@ class ACOCTrainer:
                     loss = self._training_step(batch_x, batch_y)
                     losses.append(loss)
                     step += 1
-                    
+
                     # Progress
                     if verbose and step % max(1, num_steps // 5) == 0:
                         print(f"  Step {step}: loss = {loss:.4f}")
             else:
-                # Données simulées
+                # Simulated data
                 batch_x = torch.randn(32, self.config.input_dim, device=device)
                 batch_y = torch.randn(32, self.config.output_dim, device=device)
-                
+
                 loss = self._training_step(batch_x, batch_y)
                 losses.append(loss)
                 step += 1
-                
+
                 if verbose and step % max(1, num_steps // 5) == 0:
                     print(f"  Step {step}: loss = {loss:.4f}")
-        
-        # Mettre à jour le warmup
+
+        # Update warmup
         self.model.warmup_manager.step()
         self.model.warmup_manager.check_and_cleanup(current_cycle=self.model.current_cycle)
-        
-        # Enregistrer la loss moyenne
+
+        # Record average loss
         avg_loss = sum(losses) / len(losses) if losses else 0.0
         self.model.metrics.add_loss(avg_loss)
         
@@ -148,52 +148,52 @@ class ACOCTrainer:
         return avg_loss
     
     def _training_step(
-        self, 
-        batch_x: torch.Tensor, 
+        self,
+        batch_x: torch.Tensor,
         batch_y: torch.Tensor
     ) -> float:
-        """Effectue un step de training."""
+        """Performs a training step."""
         self.optimizer.zero_grad()
-        
+
         # Forward
         outputs, routing_stats = self.model(batch_x)
-        
+
         # Loss
         loss = self.model.compute_loss(outputs, batch_y)
-        
+
         # Backward
         loss.backward()
-        
+
         # Gradient clipping
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-        
+
         # Update
         self.optimizer.step()
-        
+
         return loss.item()
-    
+
     def checkpoint_phase(
-        self, 
+        self,
         validation_data: DataLoader = None,
         verbose: bool = True
     ) -> tuple:
         """
-        Phase de checkpoint: évaluation + vote des variantes avec seuil RELATIF.
+        Checkpoint phase: evaluation + variant voting with RELATIVE threshold.
         """
         if verbose:
-            print(f"\n[Cycle {self.model.current_cycle}] === PHASE CHECKPOINT ===")
-        
+            print(f"\n[Cycle {self.model.current_cycle}] === CHECKPOINT PHASE ===")
+
         self.model.eval()
-        
-        # Collecter les métriques de saturation
+
+        # Collect saturation metrics
         metrics = self.model.collect_metrics()
-        
-        # Initialiser les deltas des variantes
+
+        # Initialize variant deltas
         self.model.variant_system.initialize_deltas(self.model)
-        
-        # Fonction d'évaluation
+
+        # Evaluation function
         def evaluate_fn(model: nn.Module) -> float:
-            """Évalue le modèle sur les données de validation."""
+            """Evaluates the model on validation data."""
             model.eval()
             device = self.model.device
             
@@ -218,17 +218,17 @@ class ACOCTrainer:
                             loss = nn.functional.mse_loss(outputs, val_y)
                         total_loss += loss.item() * val_x.size(0)
                         count += val_x.size(0)
-                        
-                        if count >= 500:  # Limiter l'évaluation
+
+                        if count >= 500:  # Limit evaluation
                             break
-                
+
                 avg_loss = total_loss / max(count, 1)
             else:
-                # Données simulées
+                # Simulated data
                 with torch.no_grad():
                     val_x = torch.randn(100, self.config.input_dim, device=device)
                     if self.config.use_cross_entropy:
-                        # Pour CrossEntropy, générer des indices aléatoires
+                        # For CrossEntropy, generate random indices
                         val_y = torch.randint(0, self.config.output_dim, (100,), device=device)
                         outputs, _ = model(val_x)
                         avg_loss = nn.functional.cross_entropy(outputs, val_y).item()
@@ -236,44 +236,44 @@ class ACOCTrainer:
                         val_y = torch.randn(100, self.config.output_dim, device=device)
                         outputs, _ = model(val_x)
                         avg_loss = nn.functional.mse_loss(outputs, val_y).item()
-            
-            # Convertir la loss en score (inverse)
+
+            # Convert loss to score (inverse)
             score = 1.0 / (1.0 + avg_loss)
             return score
-        
-        # Vote sur l'expansion avec seuil RELATIF
+
+        # Vote on expansion with RELATIVE threshold
         should_expand, confidence, reason = self.model.variant_system.vote_on_expansion(
             self.model, evaluate_fn, metrics
         )
-        
-        # Ajouter le score à l'historique des métriques
+
+        # Add score to metrics history
         current_score = evaluate_fn(self.model)
         metrics.add_validation_score(current_score)
-        
+
         if verbose:
-            # Afficher les métriques de saturation détaillées
-            print(f"  Saturation détaillée:")
+            # Display detailed saturation metrics
+            print(f"  Detailed saturation:")
             for block_id, sat in metrics.detailed_saturation.items():
                 print(f"    {block_id}: score={sat.combined_score:.2f} "
                       f"(grad_flow={sat.gradient_flow_ratio:.2f}, "
                       f"act_sat={sat.activation_saturation:.2f}, "
                       f"dead={sat.dead_neuron_ratio:.2f})")
-            
+
             print(f"  Utilization: {metrics.expert_utilization}")
             print(f"  Vote: expand={should_expand}, conf={confidence:.2f}")
             print(f"  {reason}")
-        
-        # Merger les meilleurs deltas
+
+        # Merge best deltas
         self.model.variant_system.merge_best_deltas(self.model, evaluate_fn)
-        
-        # Faire évoluer les deltas
+
+        # Evolve deltas
         scored = self.model.variant_system.evaluate_variants(self.model, evaluate_fn)
         self.model.variant_system.evolve_deltas(self.model, scored)
-        
+
         self.model.train()
-        
+
         return should_expand, confidence, reason
-    
+
     def decision_phase(
         self,
         variant_vote: bool = False,
@@ -281,21 +281,21 @@ class ACOCTrainer:
         verbose: bool = True
     ) -> ExpansionDecision:
         """
-        Phase de décision basée sur les métriques de saturation.
+        Decision phase based on saturation metrics.
         """
         if verbose:
-            print(f"\n[Cycle {self.model.current_cycle}] === PHASE DÉCISION ===")
-        
-        # Décision basée sur les métriques
+            print(f"\n[Cycle {self.model.current_cycle}] === DECISION PHASE ===")
+
+        # Decision based on metrics
         decision = self.model.evaluate_expansion()
-        
-        # Combiner avec le vote des variantes
+
+        # Combine with variant vote
         if variant_vote and not decision.should_expand and variant_confidence > 0.7:
-            # Le vote suggère d'expand avec forte confiance
+            # Vote suggests expansion with high confidence
             decision.should_expand = True
             decision.expansion_type = "width"
             decision.confidence = variant_confidence
-            decision.reason += f" + Vote variantes fort ({variant_confidence:.0%})"
+            decision.reason += f" + Strong variant vote ({variant_confidence:.0%})"
         
         if verbose:
             print(f"  Decision: expand={decision.should_expand}")
@@ -307,79 +307,79 @@ class ACOCTrainer:
         return decision
     
     def expansion_phase(
-        self, 
+        self,
         decision: ExpansionDecision,
         verbose: bool = True
     ) -> bool:
         """
-        Phase d'expansion avec démarrage du warmup.
+        Expansion phase with warmup startup.
         """
         if not decision.should_expand:
             if verbose:
-                print(f"\n[Cycle {self.model.current_cycle}] === PAS D'EXPANSION ===")
+                print(f"\n[Cycle {self.model.current_cycle}] === NO EXPANSION ===")
             return False
-        
+
         if verbose:
-            print(f"\n[Cycle {self.model.current_cycle}] === PHASE EXPANSION ===")
-        
-        # Sauvegarder Fisher info du routeur
-        # (simplifié: on le fait avec des données simulées)
+            print(f"\n[Cycle {self.model.current_cycle}] === EXPANSION PHASE ===")
+
+        # Save router Fisher info
+        # (simplified: using simulated data)
         self.model.router.compute_fisher(
             self._create_dummy_dataloader()
         )
-        
-        # Exécuter l'expansion
+
+        # Execute expansion
         success = self.model.execute_expansion(decision)
-        
+
         if success:
             if verbose:
-                print(f"  ✓ Expansion réussie: {decision.expansion_type}")
+                print(f"  ✓ Expansion successful: {decision.expansion_type}")
                 if decision.target_block_id:
                     print(f"    Target: {decision.target_block_id}")
-                print(f"  Nouvelle taille: {self.model.get_total_params():,} params")
-            
-            # Reconstruire l'optimizer
+                print(f"  New size: {self.model.get_total_params():,} params")
+
+            # Rebuild optimizer
             self._rebuild_optimizer()
-            
-            # Ajuster les pénalités si nécessaire
+
+            # Adjust penalties if necessary
             adjusted = self.model.penalty_manager.adjust_thresholds(self.model.metrics)
             if adjusted and verbose:
-                print(f"  Pénalités ajustées")
-            
+                print(f"  Penalties adjusted")
+
             if verbose and decision.expansion_type == "new_block":
-                print(f"  [Warmup démarré] {self.config.warmup_steps} steps, "
+                print(f"  [Warmup started] {self.config.warmup_steps} steps, "
                       f"exploration={self.config.new_block_exploration_prob:.0%}")
-        
+
         return success
-    
+
     def _create_dummy_dataloader(self, num_samples: int = 100):
-        """Crée un dataloader avec des données simulées."""
+        """Creates a dataloader with simulated data."""
         x = torch.randn(num_samples, self.config.input_dim)
         y = torch.randn(num_samples, self.config.output_dim)
         dataset = TensorDataset(x, y)
         return DataLoader(dataset, batch_size=32)
-    
+
     def maintenance_phase(self, verbose: bool = True) -> Dict:
-        """Phase de maintenance: pruning et consolidation."""
+        """Maintenance phase: pruning and consolidation."""
         if verbose:
-            print(f"\n[Cycle {self.model.current_cycle}] === PHASE MAINTENANCE ===")
-        
+            print(f"\n[Cycle {self.model.current_cycle}] === MAINTENANCE PHASE ===")
+
         actions = self.model.run_maintenance()
-        
+
         if verbose:
             if actions["pruned"]:
                 print(f"  Pruned: {actions['pruned']}")
             if actions["consolidated"]:
                 print(f"  Consolidated: {actions['consolidated']}")
             if not actions["pruned"] and not actions["consolidated"]:
-                print(f"  Aucune action nécessaire")
-        
-        # Reconstruire l'optimizer si des changements ont eu lieu
+                print(f"  No action needed")
+
+        # Rebuild optimizer if changes occurred
         if actions["pruned"] or actions["consolidated"]:
             self._rebuild_optimizer()
-        
+
         return actions
-    
+
     def run_cycle(
         self,
         data_loader: DataLoader = None,
@@ -387,32 +387,32 @@ class ACOCTrainer:
         num_steps: int = 50,
         verbose: bool = True
     ) -> TrainingLog:
-        """Exécute un cycle complet."""
+        """Executes a complete cycle."""
         if self.on_cycle_start:
             self.on_cycle_start(self.model.current_cycle)
-        
+
         # 1. Training
         avg_loss = self.training_phase(data_loader, num_steps, verbose=verbose)
-        
-        # 2. Checkpoint avec seuil relatif
+
+        # 2. Checkpoint with relative threshold
         variant_vote, confidence, _ = self.checkpoint_phase(validation_data, verbose=verbose)
-        
-        # 3. Décision
+
+        # 3. Decision
         decision = self.decision_phase(variant_vote, confidence, verbose=verbose)
-        
-        # 4. Expansion (avec warmup automatique)
+
+        # 4. Expansion (with automatic warmup)
         expanded = self.expansion_phase(decision, verbose=verbose)
-        
-        # 5. Maintenance (périodique)
+
+        # 5. Maintenance (periodic)
         if self.model.current_cycle % self.config.maintenance_interval == 0:
             self.maintenance_phase(verbose=verbose)
-        
-        # Créer le log
+
+        # Create log
         sat_details = {
-            block_id: sat.combined_score 
+            block_id: sat.combined_score
             for block_id, sat in self.model.metrics.detailed_saturation.items()
         }
-        
+
         log = TrainingLog(
             cycle=self.model.current_cycle,
             avg_loss=avg_loss,
@@ -426,23 +426,23 @@ class ACOCTrainer:
         )
         self.training_logs.append(log)
 
-        # Sauvegarder l'utilisation récente avant reset
+        # Save recent usage before reset
         self.model.expansion_manager.update_recent_usage(
             self.model.task_blocks,
             self.model.current_cycle
         )
 
-        # Reset pour le prochain cycle
+        # Reset for next cycle
         self.model.reset_usage_counts()
-        
+
         if self.on_cycle_end:
             self.on_cycle_end(self.model.current_cycle, log)
-        
-        # Incrémenter
+
+        # Increment
         self.model.current_cycle += 1
-        
+
         return log
-    
+
     def run(
         self,
         num_cycles: int = 10,
@@ -451,7 +451,7 @@ class ACOCTrainer:
         num_steps_per_cycle: int = 50,
         verbose: bool = True
     ):
-        """Exécute plusieurs cycles."""
+        """Executes multiple cycles."""
         if verbose:
             print("=" * 60)
             print("ACOC Training Start")
@@ -475,9 +475,9 @@ class ACOCTrainer:
             self.print_summary()
     
     def print_summary(self):
-        """Affiche un résumé de l'entraînement."""
+        """Prints a training summary."""
         print(self.model.summary())
-        
+
         # Vote summary
         vote_summary = self.model.variant_system.get_vote_summary()
         print(f"\nVote Summary:")
@@ -485,8 +485,8 @@ class ACOCTrainer:
         print(f"  Expand votes: {vote_summary['expand_votes']}")
         print(f"  Avg confidence: {vote_summary['avg_confidence']:.2f}")
         print(f"  Current threshold: {vote_summary['current_threshold']:.3f}")
-        
-        # Historique des expansions
+
+        # Expansion history
         if self.training_logs:
             print("\nTraining History (last 10):")
             print("-" * 60)
@@ -498,9 +498,9 @@ class ACOCTrainer:
                     f"params={log.total_params:,}, "
                     f"blocks={log.num_blocks} {exp_str}{warmup_str}"
                 )
-    
+
     def get_training_curve(self) -> tuple:
-        """Retourne les données pour tracer la courbe d'apprentissage."""
+        """Returns data for plotting the learning curve."""
         cycles = [log.cycle for log in self.training_logs]
         losses = [log.avg_loss for log in self.training_logs]
         params = [log.total_params for log in self.training_logs]

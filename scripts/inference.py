@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Inférence avec un modèle ACOC entraîné
-======================================
+Inference with a trained ACOC model
+====================================
 """
 
 import torch
@@ -10,30 +10,30 @@ from acoc import ACOCModel
 
 
 def load_trained_model(checkpoint_path='acoc_mnist.pth'):
-    """Charge un modèle entraîné."""
-    print(f"📂 Chargement du modèle: {checkpoint_path}")
+    """Load a trained model."""
+    print(f"📂 Loading model: {checkpoint_path}")
 
     checkpoint = torch.load(checkpoint_path, map_location='cpu')
     config = checkpoint['config']
 
-    # Créer le modèle
+    # Create model
     model = ACOCModel(config)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
-    print(f"  ✓ Modèle chargé (cycle {checkpoint['cycle']})")
-    print(f"  ✓ Paramètres: {model.get_total_params():,}")
-    print(f"  ✓ Blocs: {len(model.task_blocks)}")
+    print(f"  ✓ Model loaded (cycle {checkpoint['cycle']})")
+    print(f"  ✓ Parameters: {model.get_total_params():,}")
+    print(f"  ✓ Blocks: {len(model.task_blocks)}")
 
     return model, config
 
 
 def predict_single(model, image_tensor):
-    """Prédiction sur une seule image."""
+    """Single image prediction."""
     with torch.no_grad():
         image_tensor = image_tensor.to(model.device)
         if image_tensor.dim() == 1:
-            image_tensor = image_tensor.unsqueeze(0)  # Ajouter batch dimension
+            image_tensor = image_tensor.unsqueeze(0)  # Add batch dimension
 
         output, routing_stats = model(image_tensor)
         probabilities = torch.softmax(output, dim=-1)
@@ -44,14 +44,14 @@ def predict_single(model, image_tensor):
 
 
 def predict_batch(model, data_loader, num_samples=10):
-    """Prédictions sur un batch avec détails."""
+    """Batch predictions with details."""
     model.eval()
 
     images, labels = next(iter(data_loader))
     images = images[:num_samples]
     labels = labels[:num_samples]
 
-    print(f"\n🔍 Prédictions sur {num_samples} exemples:")
+    print(f"\n🔍 Predictions on {num_samples} examples:")
     print(f"{'='*70}")
 
     correct = 0
@@ -64,24 +64,24 @@ def predict_batch(model, data_loader, num_samples=10):
         correct += is_correct
 
         status = "✓" if is_correct else "✗"
-        print(f"{status} Sample {i+1}: Vrai={true_label}, Prédit={pred_class}, "
-              f"Confiance={confidence:.2%}")
+        print(f"{status} Sample {i+1}: True={true_label}, Predicted={pred_class}, "
+              f"Confidence={confidence:.2%}")
 
-        # Montrer le routage
+        # Show routing
         main_block = max(routing, key=routing.get)
-        print(f"   → Routé vers: {main_block} ({routing[main_block]} samples)")
+        print(f"   → Routed to: {main_block} ({routing[main_block]} samples)")
 
     print(f"{'='*70}")
-    print(f"Précision: {correct}/{num_samples} ({100*correct/num_samples:.1f}%)")
+    print(f"Accuracy: {correct}/{num_samples} ({100*correct/num_samples:.1f}%)")
 
 
 def evaluate_full(model, data_loader):
-    """Évaluation complète sur un dataset."""
+    """Full evaluation on a dataset."""
     model.eval()
     correct = 0
     total = 0
 
-    print(f"\n📊 Évaluation complète...")
+    print(f"\n📊 Full evaluation...")
 
     with torch.no_grad():
         for images, labels in data_loader:
@@ -100,13 +100,13 @@ def evaluate_full(model, data_loader):
 
 def main():
     print("=" * 70)
-    print("ACOC Inférence")
+    print("ACOC Inference")
     print("=" * 70)
 
-    # Charger le modèle
+    # Load model
     model, config = load_trained_model('acoc_mnist.pth')
 
-    # Charger les données de test (pas besoin de one-hot pour l'inférence)
+    # Load test data (no need for one-hot for inference)
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,)),
@@ -120,14 +120,14 @@ def main():
         test_dataset, batch_size=128, shuffle=False
     )
 
-    # Exemples de prédictions
+    # Example predictions
     predict_batch(model, test_loader, num_samples=10)
 
-    # Évaluation complète
+    # Full evaluation
     evaluate_full(model, test_loader)
 
     print(f"\n{'='*70}")
-    print("✅ Inférence terminée!")
+    print("✅ Inference completed!")
     print(f"{'='*70}")
 
 

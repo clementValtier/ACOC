@@ -1,21 +1,21 @@
 # ACOC - Adaptive Controlled Organic Capacity
 
-Architecture de réseau neuronal à croissance dynamique avec expansion contrôlée, routage intelligent et support multi-modal (Images/Texte/Audio).
+Dynamic neural network architecture with controlled expansion, intelligent routing and multi-modal support (Images/Text/Audio).
 
 ## 🎯 Concept
 
-ACOC est un modèle d'IA qui démarre avec une architecture minimale et s'agrandit progressivement selon ses besoins réels, évitant le sur-dimensionnement tout en maintenant la capacité d'apprentissage. Le système détecte automatiquement le type de données (images, texte, audio) et utilise l'architecture appropriée (CNN/MLP).
+ACOC is an AI model that starts with a minimal architecture and progressively grows according to its actual needs, avoiding over-dimensioning while maintaining learning capacity. The system automatically detects the data type (images, text, audio) and uses the appropriate architecture (CNN/MLP).
 
-### ✨ Principes Clés
+### ✨ Key Principles
 
-- **Croissance Organique** : Le modèle commence petit et ajoute des neurones/couches uniquement quand nécessaire
-- **Détection Automatique** : Reconnaît images/texte/audio et applique un biais léger vers l'architecture adaptée
-- **Support Multi-Modal** : CNN automatiques pour images, MLP pour texte/audio, avec routeur intelligent
-- **Double Malus** : Pénalité globale (logarithmique) + pénalité par tâche (quadratique) pour forcer la parcimonie
-- **Vote par Consensus** : 5 variantes légères (deltas) votent sur les décisions d'expansion avec seuil adaptatif
-- **Protection Anti-Forgetting** : EWC sur le routeur + isolation des blocs de tâches
+- **Organic Growth**: The model starts small and adds neurons/layers only when necessary
+- **Automatic Detection**: Recognizes images/text/audio and applies a slight bias towards the adapted architecture
+- **Multi-Modal Support**: Automatic CNNs for images, MLP for text/audio, with intelligent router
+- **Double Penalty**: Global penalty (logarithmic) + per-task penalty (quadratic) to enforce sparsity
+- **Consensus Voting**: 5 lightweight variants (deltas) vote on expansion decisions with adaptive threshold
+- **Anti-Forgetting Protection**: EWC on the router + task block isolation
 
-## 📊 Résultats
+## 📊 Results
 
 | Dataset | Type | Accuracy | CNN/MLP | Expansions |
 |---------|------|----------|---------|------------|
@@ -23,43 +23,43 @@ ACOC est un modèle d'IA qui démarre avec une architecture minimale et s'agrand
 | **Fashion-MNIST** | Images 28×28 | **91.15%** | CNN 100% | 0 |
 | **CIFAR-10** | Images 32×32×3 | **75.38%** | CNN 82% | 0 |
 | **CIFAR-100** | Images 32×32×3 | **~45-50%** | CNN 90%+ | 0-2 |
-| **IMDB** | Texte (sentiment) | **~85%+** | MLP 100% | 0-2 |
-| **Speech Commands** | Audio | **~85%+** | MLP 100% | 0-2 |
+| **IMDB** | Text (sentiment) | **~85%+** | MLP 100% | 0-2 |
+| **Speech Commands** | Audio | **TODO** | TODO | TODO |
 
-Le système converge de manière stable sans expansions inutiles, en utilisant l'architecture appropriée automatiquement.
+The system converges stably without unnecessary expansions, automatically using the appropriate architecture.
 
 ## 🚀 Installation
 
 ```bash
-# Cloner le repository
+# Clone the repository
 git clone https://github.com/clementValtier/ACOC.git
 cd acoc
 
-# Créer un environnement virtuel
+# Create a virtual environment
 python3 -m venv venv
-source venv/bin/activate  # ou `venv\Scripts\activate` sur Windows
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
 
-# Installer les dépendances de base
+# Install base dependencies
 pip install -r requirements.txt
 
-# Installer en mode développement
+# Install in development mode
 pip install -e .
 
-# Pour le support texte (IMDB)
+# For text support (IMDB)
 pip install datasets transformers
 
-# Pour le support audio (Speech Commands)
+# For audio support (Speech Commands)
 pip install torchaudio
 ```
 
 ## 🎮 Quick Start
 
-### Images (MNIST - Chiffres)
+### Images (MNIST - Digits)
 ```bash
 python3 scripts/train_mnist.py
 ```
 
-### Images (Fashion-MNIST - Vêtements)
+### Images (Fashion-MNIST - Clothing)
 ```bash
 python3 scripts/train_fashion.py
 ```
@@ -74,7 +74,7 @@ python3 scripts/train_cifar10.py
 python3 scripts/train_cifar100.py
 ```
 
-### Texte (IMDB Sentiment Analysis)
+### Text (IMDB Sentiment Analysis)
 ```bash
 python3 scripts/train_imdb.py
 ```
@@ -84,7 +84,7 @@ python3 scripts/train_imdb.py
 python3 scripts/train_speech_commands.py
 ```
 
-## 📖 Usage Avancé
+## 📖 Advanced Usage
 
 ```python
 from acoc import ACOCModel, ACOCTrainer, SystemConfig
@@ -92,22 +92,22 @@ from acoc import ACOCModel, ACOCTrainer, SystemConfig
 # Configuration
 config = SystemConfig(
     device='cuda',
-    input_dim=3072,      # 32×32×3 pour CIFAR-10
+    input_dim=3072,      # 32×32×3 for CIFAR-10
     hidden_dim=512,
     output_dim=10,
-    use_cnn=True,        # Active les CNN pour images
+    use_cnn=True,        # Enable CNNs for images
     saturation_threshold=0.8,
     min_cycles_before_expand=10,
     expansion_cooldown=15
 )
 
-# Création du modèle
+# Model creation
 model = ACOCModel(config)
 
-# Le routeur détecte automatiquement le type de données et applique un biais léger
-# vers l'architecture appropriée (CNN pour images, MLP pour texte/audio)
+# The router automatically detects the data type and applies a slight bias
+# towards the appropriate architecture (CNN for images, MLP for text/audio)
 
-# Entraînement
+# Training
 trainer = ACOCTrainer(model, config, class_names=['class1', 'class2'])
 trainer.train(
     train_loader=train_loader,
@@ -119,98 +119,98 @@ trainer.train(
 
 ## 🏗️ Architecture
 
-### Structure du Projet
+### Project Structure
 
 ```
 acoc/
-├── config/          # Configuration et structures de données
-├── core/            # Router avec détection automatique du type de données
+├── config/          # Configuration and data structures
+├── core/            # Router with automatic data type detection
 ├── experts/         # BaseExpert, MLPExpert, CNNExpert, ExpertFactory
-├── monitoring/      # Monitoring des gradients et activations
+├── monitoring/      # Gradient and activation monitoring
 ├── management/      # Expansion, Warmup, Penalty, Pruning
-├── variants/        # Système de vote par variantes
-├── model/           # Modèle ACOC principal avec routage intelligent
-├── training/        # Boucle d'entraînement
-└── scripts/         # Scripts de training pour différents datasets
+├── variants/        # Variant voting system
+├── model/           # Main ACOC model with intelligent routing
+├── training/        # Training loop
+└── scripts/         # Training scripts for different datasets
 ```
 
-### Architecture Modulaire avec Factory Pattern
+### Modular Architecture with Factory Pattern
 
 ```python
-# Système d'experts modulaire
-BaseExpert (classe abstraite)
-├── MLPExpert        # Pour texte et audio
-└── CNNExpert        # Pour images avec détection auto des dimensions
+# Modular expert system
+BaseExpert (abstract class)
+├── MLPExpert        # For text and audio
+└── CNNExpert        # For images with automatic dimension detection
 
-# Factory pour créer automatiquement le bon type d'expert
+# Factory to automatically create the right expert type
 expert = ExpertFactory.create(
-    expert_type="cnn",  # ou "mlp"
+    expert_type="cnn",  # or "mlp"
     input_dim=3072,
     config=config
 )
 ```
 
-### Détection Automatique du Type de Données
+### Automatic Data Type Detection
 
-Le routeur détecte automatiquement le type de données en analysant :
+The router automatically detects the data type by analyzing:
 
-1. **Dimension** : Si `input_dim` forme un carré parfait (784=28², 3072=32²×3) → **Image**
-2. **Statistiques** : Distribution, variance, plage de valeurs → **Texte/Audio**
+1. **Dimension**: If `input_dim` forms a perfect square (784=28², 3072=32²×3) → **Image**
+2. **Statistics**: Distribution, variance, value range → **Text/Audio**
 
-Un biais léger (+1.0 à +2.0) est appliqué vers l'architecture appropriée, laissant le routeur apprendre naturellement :
+A slight bias (+1.0 to +2.0) is applied towards the appropriate architecture, letting the router learn naturally:
 
 ```python
-# Détection automatique au premier forward
-data_type = router.detect_data_type(x)  # "image", "text", ou "audio"
+# Automatic detection on first forward
+data_type = router.detect_data_type(x)  # "image", "text", or "audio"
 
-# Biais léger vers l'architecture appropriée
+# Slight bias towards the appropriate architecture
 if data_type == "image":
-    router.set_route_bias(base_image_idx, 2.0)  # Oriente vers CNN
+    router.set_route_bias(base_image_idx, 2.0)  # Direct towards CNN
 ```
 
-## 🔄 Boucle d'Entraînement
+## 🔄 Training Loop
 
-1. **TRAINING** : Architecture fixe, backpropagation normale (5 min par cycle)
-2. **CHECKPOINT** : Évaluation + vote des 5 variantes (seuil relatif à l'historique)
-3. **DÉCISION** : Analyse des métriques de saturation (gradient flow, activations, neurones morts)
-4. **EXPANSION** : Modification de l'architecture si nécessaire (width/depth/new_block)
-5. **WARMUP** : LR × 5 pour nouveaux paramètres + exploration forcée (10%)
-6. **MAINTENANCE** : Pruning des blocs inutilisés + consolidation des blocs similaires
+1. **TRAINING**: Fixed architecture, normal backpropagation (5 min per cycle)
+2. **CHECKPOINT**: Evaluation + voting from 5 variants (threshold relative to history)
+3. **DECISION**: Saturation metrics analysis (gradient flow, activations, dead neurons)
+4. **EXPANSION**: Modify architecture if necessary (width/depth/new_block)
+5. **WARMUP**: LR × 5 for new parameters + forced exploration (10%)
+6. **MAINTENANCE**: Pruning unused blocks + consolidation of similar blocks
 
-## 📈 Métriques de Saturation
+## 📈 Saturation Metrics
 
-Le système combine 4 métriques pour détecter le besoin d'expansion :
+The system combines 4 metrics to detect expansion needs:
 
-- **Gradient Flow Ratio** : Proportion de gradients "vivants" (> seuil)
-- **Activation Saturation** : Ratio de neurones saturés (> 95% du max)
-- **Dead Neuron Ratio** : Ratio de neurones toujours à 0
-- **Activation Variance** : Diversité des activations inter-batch
+- **Gradient Flow Ratio**: Proportion of "alive" gradients (> threshold)
+- **Activation Saturation**: Ratio of saturated neurons (> 95% of max)
+- **Dead Neuron Ratio**: Ratio of always-zero neurons
+- **Activation Variance**: Inter-batch activation diversity
 
-Score combiné pondéré : `0.35×gradient + 0.25×saturation + 0.20×dead + 0.20×variance`
+Weighted combined score: `0.35×gradient + 0.25×saturation + 0.20×dead + 0.20×variance`
 
 ## 🔧 Expansion
 
-### Types d'Expansion
+### Expansion Types
 
-- **Width** : Ajout de neurones (Net2Net avec duplication + bruit)
-- **Depth** : Ajout de couches
-- **New Block** : Création d'un nouveau bloc de tâche
+- **Width**: Adding neurons (Net2Net with duplication + noise)
+- **Depth**: Adding layers
+- **New Block**: Creating a new task block
 
-### Déclencheurs (Paramètres Recommandés)
+### Triggers (Recommended Parameters)
 
-- Score de saturation combiné > **80%** (configurable, augmenté pour stabilité)
-- Minimum **10 cycles** avant première expansion (patience accrue)
-- **15 cycles** de cooldown entre expansions (stabilité)
-- Loss stagnante (< 1% d'amélioration sur 10 cycles)
-- Vote majoritaire des variantes (consensus)
+- Combined saturation score > **80%** (configurable, increased for stability)
+- Minimum **10 cycles** before first expansion (increased patience)
+- **15 cycles** cooldown between expansions (stability)
+- Stagnant loss (< 1% improvement over 10 cycles)
+- Majority vote from variants (consensus)
 
-### Stabilisation Post-Expansion
+### Post-Expansion Stabilization
 
-- Learning rate multiplié (×5) pour nouveaux paramètres
-- Exploration forcée vers nouveaux blocs (10% de probabilité)
-- Période de warmup configurable (50 steps par défaut)
+- Learning rate multiplied (×5) for new parameters
+- Forced exploration towards new blocks (10% probability)
+- Configurable warmup period (50 steps by default)
 
-## 💰 Double Malus
+## 💰 Double Penalty
 
 ```python
 Loss_total = Loss_task
@@ -218,85 +218,85 @@ Loss_total = Loss_task
            + β × Σ max(0, params_task_i - threshold_i)²
 ```
 
-- **α = 0.01** : Pénalité globale (logarithmique)
-- **β = 0.05** : Pénalité par tâche (quadratique au-delà du seuil)
+- **α = 0.01**: Global penalty (logarithmic)
+- **β = 0.05**: Per-task penalty (quadratic beyond threshold)
 
-Le malus s'adapte automatiquement : se relâche si la loss stagne, se resserre si amélioration rapide.
+The penalty automatically adapts: relaxes if loss stagnates, tightens if rapid improvement.
 
-## 🎲 Système de Variantes
+## 🎲 Variants System
 
-5 variantes légères du même modèle (deltas) pour explorer l'espace des poids :
+5 lightweight variants of the same model (deltas) to explore the weight space:
 
 ```python
-model_base = load_model()                    # 1 modèle en mémoire
-deltas = [small_perturbation() for _ in 5]  # 5 petits deltas
+model_base = load_model()                    # 1 model in memory
+deltas = [small_perturbation() for _ in 5]  # 5 small deltas
 
-# Vote avec seuil relatif
+# Vote with relative threshold
 threshold = 0.95 × mean(last_5_scores)
 votes = [evaluate(model + delta) < threshold for delta in deltas]
 should_expand = majority(votes)
 ```
 
-Coût mémoire minimal : les deltas sont ~0.1% de la taille du modèle.
+Minimal memory cost: deltas are ~0.1% of the model size.
 
 ## 🧠 Catastrophic Forgetting
 
-### Mitigation Architecturale
+### Architectural Mitigation
 
-- Blocs de tâches séparés (isolation naturelle)
-- Malus par tâche (empêche l'invasion)
-- Ajout plutôt que modification (Progressive Networks style)
+- Separate task blocks (natural isolation)
+- Per-task penalty (prevents invasion)
+- Addition rather than modification (Progressive Networks style)
 
-### Protection du Routeur
+### Router Protection
 
-- **EWC (Elastic Weight Consolidation)** sur le routeur central
-- Fisher Information Matrix calculée périodiquement
-- Pénalité sur les changements des poids critiques
+- **EWC (Elastic Weight Consolidation)** on the central router
+- Fisher Information Matrix calculated periodically
+- Penalty on changes to critical weights
 
 ### Maintenance
 
-- **Pruning** : Suppression des blocs inutilisés (< 10% utilisation après 20 cycles)
-- **Consolidation** : Fusion de blocs similaires (similarité > 90%)
+- **Pruning**: Removal of unused blocks (< 10% usage after 20 cycles)
+- **Consolidation**: Merging similar blocks (similarity > 90%)
 
 ## ⚙️ Configuration
 
-### Hyperparamètres Principaux (Valeurs Recommandées 2026)
+### Main Hyperparameters (Recommended Values 2026)
 
 ```python
 SystemConfig(
     # Architecture
-    input_dim=3072,              # Dépend du dataset
+    input_dim=3072,              # Depends on dataset
     hidden_dim=512,
     output_dim=10,
 
-    # CNN (pour images)
+    # CNN (for images)
     use_cnn=True,
-    cnn_channels=[32, 64, 128],  # Structure CNN
-    image_channels=3,            # 3 pour RGB, 1 pour grayscale
+    cnn_channels=[32, 64, 128],  # CNN structure
+    image_channels=3,            # 3 for RGB, 1 for grayscale
 
-    # Expansion (valeurs plus conservatrices pour stabilité)
-    saturation_threshold=0.8,         # 80% au lieu de 60%
-    min_cycles_before_expand=10,      # 10 au lieu de 3
-    expansion_cooldown=15,            # 15 au lieu de 5
-    expansion_ratio=0.1,              # Ajouter 10% de neurones
-    recent_usage_window=5,            # Fenêtre pour utilisation
+    # Expansion (more conservative values for stability)
+    saturation_threshold=0.8,         # 80% instead of 60%
+    min_cycles_before_expand=10,      # 10 instead of 3
+    expansion_cooldown=15,            # 15 instead of 5
+    expansion_ratio=0.1,              # Add 10% of neurons
+    recent_usage_window=5,            # Window for usage tracking
 
-    # Pénalités
-    alpha_global_penalty=0.01,        # Pénalité globale
-    beta_task_penalty=0.05,           # Pénalité par tâche
-    task_param_threshold=1_000_000,   # Seuil avant pénalité
+    # Penalties
+    alpha_global_penalty=0.01,        # Global penalty
+    beta_task_penalty=0.05,           # Per-task penalty
+    task_param_threshold=1_000_000,   # Threshold before penalty
 
-    # Variantes
-    num_variants=5,                   # 5 variantes pour le vote
-    delta_magnitude=0.01,             # Amplitude des perturbations
-    performance_threshold_ratio=0.95, # Seuil relatif (95% moyenne)
+    # Variants
+    num_variants=5,                   # 5 variants for voting
+    delta_magnitude=0.01,             # Perturbation magnitude
+    performance_threshold_ratio=0.95, # Relative threshold (95% mean)
 
     # Warmup
-    warmup_steps=50,                  # Steps de warmup
-    warmup_lr_multiplier=5.0,         # LR × 5 pour nouveaux params
-    new_block_exploration_prob=0.1,   # 10% exploration (réduit)
-    new_block_exploration_cycles=3,   # Cycles d'exploration
-    max_warmup_cycles=10,             # Cycles max avant désactivation
+    warmup_steps=50,                  # Warmup steps
+    warmup_lr_multiplier=5.0,         # LR × 5 for new params
+    new_block_exploration_prob=0.1,   # 10% exploration (reduced)
+    new_block_exploration_cycles=3,   # Exploration cycles
+    max_warmup_cycles=10,             # Max cycles before deactivation
 
     # Maintenance
     prune_unused_after_cycles=20,
@@ -304,31 +304,31 @@ SystemConfig(
     maintenance_interval=5,
 
     # Device
-    device='cuda'  # 'cuda', 'mps', ou 'cpu'
+    device='cuda'  # 'cuda', 'mps', or 'cpu'
 )
 ```
 
-## 📝 Ajouter un Nouveau Dataset
+## 📝 Adding a New Dataset
 
-Tous les scripts de training utilisent `BaseACOCTrainer` pour factoriser le code commun. Pour ajouter un dataset :
+All training scripts use `BaseACOCTrainer` to factor out common code. To add a dataset:
 
 ```python
 from scripts.base_trainer import BaseACOCTrainer
 from acoc import SystemConfig
 
 class MyTrainer(BaseACOCTrainer):
-    CLASSES = ['ClasseA', 'ClasseB']
+    CLASSES = ['ClassA', 'ClassB']
 
     def get_config(self):
         return SystemConfig(
             device=self.device,
             input_dim=1000,
             output_dim=2,
-            use_cnn=False  # True pour images
+            use_cnn=False  # True for images
         )
 
     def get_dataloaders(self):
-        # Charger et retourner (train_loader, test_loader)
+        # Load and return (train_loader, test_loader)
         return train_loader, test_loader
 
     def get_class_names(self):
@@ -345,50 +345,50 @@ if __name__ == '__main__':
     trainer.run()
 ```
 
-Voir `scripts/README.md` pour plus de détails.
+See `scripts/README.md` for more details.
 
 ## 🧪 Tests
 
 ```bash
-# Tests unitaires
+# Unit tests
 pytest tests/
 
-# Test spécifique
+# Specific test
 pytest tests/test_expansion.py -v
 ```
 
-## 📚 Références
+## 📚 References
 
-### Concepts Utilisés
+### Concepts Used
 
-- **NEAT** (Stanley, 2002) : Neuroévolution avec topologie augmentée
-- **Net2Net** (Chen et al., 2015) : Expansion de réseaux préservant la fonction
-- **LEMON** (ICLR 2024) : Expansion lossless pour Transformers
-- **Mixture of Experts** : GPT-4, Mixtral, DeepSeek-V3
-- **Model Soups** (2022) : Moyennage de poids sans coût d'inférence
-- **Progressive Neural Networks** (DeepMind) : Anti-forgetting par ajout de colonnes
-- **EWC** (Kirkpatrick et al., 2017) : Elastic Weight Consolidation
+- **NEAT** (Stanley, 2002): Neuroevolution with augmented topology
+- **Net2Net** (Chen et al., 2015): Function-preserving network expansion
+- **LEMON** (ICLR 2024): Lossless expansion for Transformers
+- **Mixture of Experts**: GPT-4, Mixtral, DeepSeek-V3
+- **Model Soups** (2022): Weight averaging without inference cost
+- **Progressive Neural Networks** (DeepMind): Anti-forgetting through column addition
+- **EWC** (Kirkpatrick et al., 2017): Elastic Weight Consolidation
 
-### État de l'Art
+### State of the Art
 
-- **DynMoE** (ICLR 2025) : Ajustement dynamique du nombre d'experts
-- **Growth-based NAS** : Construction layer-by-layer
-- **Continual Learning** : CoMA/CoFiMA avec Fisher information
-- **Multimodal Unified Models** (2024-2025) : GPT-4o, Gemini
+- **DynMoE** (ICLR 2025): Dynamic adjustment of expert count
+- **Growth-based NAS**: Layer-by-layer construction
+- **Continual Learning**: CoMA/CoFiMA with Fisher information
+- **Multimodal Unified Models** (2024-2025): GPT-4o, Gemini
 
 ## 🎯 Roadmap
 
-- [x] Support CNN automatique pour images
-- [x] Détection automatique du type de données
-- [x] Factory pattern pour experts modulaires
-- [x] Scripts de training refactorisés
-- [x] Support multi-modal (Images/Texte/Audio)
-- [ ] Support GPU multi-GPU (DataParallel/DistributedDataParallel)
-- [ ] Benchmark vs baselines (MoE statique, Progressive Networks)
-- [ ] Mécanisme de partage inter-branches
-- [ ] Support pour transformers et attention
+- [x] Automatic CNN support for images
+- [x] Automatic data type detection
+- [x] Factory pattern for modular experts
+- [x] Refactored training scripts
+- [x] Multi-modal support (Images/Text/Audio)
+- [ ] Multi-GPU support (DataParallel/DistributedDataParallel)
+- [ ] Benchmark vs baselines (static MoE, Progressive Networks)
+- [ ] Inter-branch sharing mechanism
+- [ ] Support for transformers and attention
 
-## 📄 Licence
+## 📄 License
 
 MIT
 
@@ -396,4 +396,4 @@ MIT
 
 ACOC Project - v0.3.0 (2026)
 
-Auteur : Clément Valtier
+Author: Clément Valtier

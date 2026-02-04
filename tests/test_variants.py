@@ -1,5 +1,5 @@
 """
-Tests pour le système de variantes et de vote.
+Tests for the variants and voting system.
 """
 
 import torch
@@ -10,7 +10,7 @@ from acoc.variants import VariantSystem
 
 
 class SimpleModel(nn.Module):
-    """Modèle simple pour les tests."""
+    """Simple model for tests."""
 
     def __init__(self, input_dim=10, hidden_dim=20, output_dim=10):
         super().__init__()
@@ -22,11 +22,11 @@ class SimpleModel(nn.Module):
 
 
 class TestVariantSystem:
-    """Tests pour VariantSystem."""
+    """Tests for VariantSystem."""
 
     @pytest.fixture
     def config(self):
-        """Configuration de test."""
+        """Test configuration."""
         return SystemConfig(
             num_variants=5,
             delta_magnitude=0.01,
@@ -35,16 +35,16 @@ class TestVariantSystem:
 
     @pytest.fixture
     def variant_system(self, config):
-        """Système de variantes pour les tests."""
+        """Variant system for tests."""
         return VariantSystem(config, device=torch.device('cpu'))
 
     @pytest.fixture
     def model(self):
-        """Modèle simple pour les tests."""
+        """Simple model for tests."""
         return SimpleModel()
 
     def test_initialization(self, config):
-        """Test l'initialisation du système."""
+        """Tests system initialization."""
         vs = VariantSystem(config, device=torch.device('cpu'))
         assert vs.config == config
         assert len(vs.deltas) == 0
@@ -52,75 +52,75 @@ class TestVariantSystem:
         assert len(vs.vote_history) == 0
 
     def test_initialize_deltas(self, variant_system, model):
-        """Test l'initialisation des deltas."""
+        """Tests delta initialization."""
         variant_system.initialize_deltas(model)
 
         assert len(variant_system.deltas) == 5
         for delta in variant_system.deltas:
             assert isinstance(delta, dict)
-            assert len(delta) > 0  # Au moins quelques paramètres
+            assert len(delta) > 0  # At least a few parameters
 
     def test_deltas_are_small(self, variant_system, model):
-        """Test que les deltas sont petits par rapport au modèle."""
+        """Tests that deltas are small relative to the model."""
         variant_system.initialize_deltas(model)
 
         for delta in variant_system.deltas:
             for name, param_delta in delta.items():
                 param = dict(model.named_parameters())[name]
-                # Le delta doit être petit comparé au paramètre
+                # Delta should be small compared to parameter
                 ratio = param_delta.abs().mean() / (param.abs().mean() + 1e-8)
-                assert ratio < 0.1  # Moins de 10% en moyenne
+                assert ratio < 0.1  # Less than 10% on average
 
     def test_apply_delta(self, variant_system, model):
-        """Test l'application d'un delta."""
+        """Tests applying a delta."""
         variant_system.initialize_deltas(model)
 
         original_state = {k: v.clone() for k, v in model.state_dict().items()}
         variant_state = variant_system.apply_delta(model, delta_idx=0)
 
-        # Le state original ne doit pas être modifié
+        # Original state should not be modified
         for name, param in model.state_dict().items():
             assert torch.equal(param, original_state[name])
 
-        # Le variant_state doit être différent
+        # Variant state should be different
         for name in variant_state:
             if name in variant_system.deltas[0]:
                 assert not torch.equal(variant_state[name], original_state[name])
 
     def test_relative_threshold(self, variant_system):
-        """Test le calcul du seuil relatif."""
-        # Pas d'historique
+        """Tests relative threshold calculation."""
+        # No history
         threshold = variant_system._get_relative_threshold()
-        assert threshold == 0.3  # Seuil par défaut
+        assert threshold == 0.3  # Default threshold
 
-        # Avec historique
+        # With history
         variant_system.score_history.extend([0.8, 0.85, 0.9, 0.88, 0.92])
         threshold = variant_system._get_relative_threshold()
         expected = 0.95 * (sum([0.9, 0.88, 0.92, 0.85, 0.8]) / 5)
         assert abs(threshold - expected) < 0.01
 
     def test_evaluate_variants(self, variant_system, model):
-        """Test l'évaluation des variantes."""
+        """Tests variant evaluation."""
         variant_system.initialize_deltas(model)
 
         def dummy_evaluate(m):
-            """Fonction d'évaluation factice."""
+            """Dummy evaluation function."""
             return torch.randn(1).item()
 
         scored_variants = variant_system.evaluate_variants(model, dummy_evaluate)
 
         assert len(scored_variants) == 5
-        # Vérifie que c'est trié par score décroissant
+        # Check that it's sorted by descending score
         for i in range(len(scored_variants) - 1):
             assert scored_variants[i][1] >= scored_variants[i + 1][1]
 
     def test_vote_on_expansion(self, variant_system, model):
-        """Test le vote sur l'expansion."""
+        """Tests voting on expansion."""
         variant_system.initialize_deltas(model)
         metrics = ModelMetrics()
 
         def dummy_evaluate(m):
-            """Retourne un score faible pour déclencher expansion."""
+            """Returns a low score to trigger expansion."""
             return 0.2
 
         should_expand, confidence, reason = variant_system.vote_on_expansion(
@@ -133,7 +133,7 @@ class TestVariantSystem:
         assert len(variant_system.score_history) > 0
 
     def test_merge_best_deltas(self, variant_system, model):
-        """Test la fusion des meilleurs deltas."""
+        """Tests merging best deltas."""
         variant_system.initialize_deltas(model)
 
         original_params = {name: param.clone() for name, param in model.named_parameters()}
@@ -143,7 +143,7 @@ class TestVariantSystem:
 
         variant_system.merge_best_deltas(model, dummy_evaluate, top_k=3)
 
-        # Les paramètres doivent avoir changé
+        # Parameters should have changed
         changed = False
         for name, param in model.named_parameters():
             if not torch.equal(param, original_params[name]):
@@ -152,7 +152,7 @@ class TestVariantSystem:
         assert changed
 
     def test_vote_history_tracking(self, variant_system, model):
-        """Test que l'historique des votes est suivi."""
+        """Tests that vote history is tracked."""
         variant_system.initialize_deltas(model)
         metrics = ModelMetrics()
 

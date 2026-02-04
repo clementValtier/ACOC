@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Training ACOC sur Speech Commands (Audio Classification)
-========================================================
-Classification de commandes vocales.
-Utilise des MFCC (Mel-Frequency Cepstral Coefficients) comme features.
+Training ACOC on Speech Commands (Audio Classification)
+======================================================
+Speech command classification.
+Uses MFCC (Mel-Frequency Cepstral Coefficients) as features.
 """
 
 import torch
@@ -17,12 +17,12 @@ from acoc import SystemConfig
 
 
 class SubsetSC(SPEECHCOMMANDS):
-    """Sous-ensemble de Speech Commands."""
+    """Subset of Speech Commands."""
 
     def __init__(self, subset: str = None):
         super().__init__("./data", download=True)
 
-        # Filtrer par subset (train/test)
+        # Filter by subset (train/test)
         def load_list(filename):
             filepath = os.path.join(self._path, filename)
             with open(filepath) as fileobj:
@@ -40,15 +40,15 @@ class SubsetSC(SPEECHCOMMANDS):
 class SpeechCommandsTrainer(BaseACOCTrainer):
     """Trainer spécifique pour Speech Commands."""
 
-    # 10 commandes les plus communes
+    # 10 most common commands
     LABELS = [
         'yes', 'no', 'up', 'down', 'left',
         'right', 'on', 'off', 'stop', 'go'
     ]
 
     LABELS_FR = [
-        'Oui', 'Non', 'Haut', 'Bas', 'Gauche',
-        'Droite', 'Allumer', 'Éteindre', 'Stop', 'Go'
+        'Yes', 'No', 'Up', 'Down', 'Left',
+        'Right', 'On', 'Off', 'Stop', 'Go'
     ]
 
     def __init__(self, num_cycles: int = 30, batch_size: int = 64, n_mfcc: int = 40):
@@ -56,7 +56,7 @@ class SpeechCommandsTrainer(BaseACOCTrainer):
         self.n_mfcc = n_mfcc
         self.label_to_idx = {label: idx for idx, label in enumerate(self.LABELS)}
 
-        # Pré-créer les transformations audio pour éviter de les recréer à chaque batch
+        # Pre-create audio transforms to avoid recreating them for each batch
         self.resampler = torchaudio.transforms.Resample(16000, 8000)
         self.mfcc_transform = torchaudio.transforms.MFCC(
             sample_rate=8000,
@@ -66,61 +66,61 @@ class SpeechCommandsTrainer(BaseACOCTrainer):
 
     def get_config(self) -> SystemConfig:
         # MFCC: n_mfcc coefficients × frames
-        # On fixe à n_mfcc × 100 frames = 4000 features (avec padding/troncature)
+        # Fixed to n_mfcc × 100 frames = 4000 features (with padding/truncation)
         return SystemConfig(
             device=self.device,
-            input_dim=self.n_mfcc * 100,  # Features audio aplaties
+            input_dim=self.n_mfcc * 100,  # Flattened audio features
             hidden_dim=512,
             output_dim=len(self.LABELS),
             num_variants=5,
             saturation_threshold=0.8,
             min_cycles_before_expand=10,
             expansion_cooldown=15,
-            use_cnn=False  # MLP pour audio (ou CNN 1D possible)
+            use_cnn=False  # MLP for audio (or 1D CNN possible)
         )
 
     def _transform_audio(self, waveform, sample_rate):
-        """Transforme l'audio en features MFCC."""
-        # Resampler à 8kHz si nécessaire
+        """Transform audio to MFCC features."""
+        # Resample to 8kHz if necessary
         if sample_rate != 8000:
             waveform = self.resampler(waveform)
 
-        # Utiliser le transform MFCC pré-créé
+        # Use pre-created MFCC transform
         mfcc = self.mfcc_transform(waveform)
 
-        # Padding/troncature à 100 frames
+        # Padding/truncation to 100 frames
         target_length = 100
         if mfcc.shape[-1] < target_length:
             # Padding
             pad_length = target_length - mfcc.shape[-1]
             mfcc = torch.nn.functional.pad(mfcc, (0, pad_length))
         else:
-            # Troncature
+            # Truncation
             mfcc = mfcc[..., :target_length]
 
         return mfcc.flatten()  # [n_mfcc, 100] -> [n_mfcc * 100]
 
     def _collate_fn(self, batch):
-        """Collate function custom pour audio."""
+        """Custom collate function for audio."""
         tensors = []
         targets = []
 
         for waveform, sample_rate, label, *_ in batch:
-            # Label to index - filtrer d'abord
+            # Label to index - filter first
             target_idx = self.label_to_idx.get(label, -1)
             if target_idx == -1:
-                continue  # Ignorer les labels qu'on ne veut pas
+                continue  # Skip labels we don't want
 
-            # Transform audio seulement si le label est valide
+            # Transform audio only if label is valid
             features = self._transform_audio(waveform, sample_rate)
             tensors.append(features)
             targets.append(target_idx)
 
         if len(tensors) == 0:
-            # Retourner des tenseurs vides au lieu de None
+            # Return empty tensors instead of None
             return torch.zeros((0, self.n_mfcc * 100)), torch.zeros((0, len(self.LABELS)))
 
-        # Stack et one-hot
+        # Stack and one-hot
         tensors = torch.stack(tensors)
         targets = torch.tensor(targets)
         targets_onehot = torch.nn.functional.one_hot(
@@ -130,8 +130,8 @@ class SpeechCommandsTrainer(BaseACOCTrainer):
         return tensors, targets_onehot
 
     def get_dataloaders(self) -> tuple:
-        """Charge Speech Commands avec torchaudio."""
-        print("📥 Téléchargement de Speech Commands...")
+        """Load Speech Commands with torchaudio."""
+        print("📥 Downloading Speech Commands...")
 
         train_dataset = SubsetSC(subset="training")
         test_dataset = SubsetSC(subset="testing")

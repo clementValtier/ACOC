@@ -1,7 +1,7 @@
 """
 ACOC - MLP Expert
 =================
-Implémentation standard Fully Connected.
+Standard fully connected implementation.
 """
 
 import torch
@@ -20,7 +20,7 @@ class MLPExpert(BaseExpert):
         self._register_hooks()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Aplatir si nécessaire (au cas où on reçoit une image sans CNN)
+        # Flatten if necessary (in case image is received without CNN)
         if x.dim() > 2:
             x = x.view(x.size(0), -1)
             
@@ -34,18 +34,18 @@ class MLPExpert(BaseExpert):
         with torch.no_grad():
             indices = torch.randint(0, self.hidden_dim, (additional_neurons,))
             
-            # Expansion FC1
+            # Expand FC1
             new_fc1 = nn.Linear(self.input_dim, self.hidden_dim + additional_neurons).to(device)
             new_fc1.weight[:self.hidden_dim] = self.fc1.weight
             new_fc1.weight[self.hidden_dim:] = self.fc1.weight[indices]
             new_fc1.bias[:self.hidden_dim] = self.fc1.bias
             new_fc1.bias[self.hidden_dim:] = self.fc1.bias[indices]
-            
-            # Bruit
+
+            # Add noise to new neurons
             noise = 0.001 * self.fc1.weight.std().item() if self.fc1.weight.std().item() > 0 else 0.001
             new_fc1.weight[self.hidden_dim:] += torch.randn_like(new_fc1.weight[self.hidden_dim:]) * noise
 
-            # Expansion FC2
+            # Expand FC2
             new_fc2 = nn.Linear(self.hidden_dim + additional_neurons, self.output_dim).to(device)
             old_w = self.fc2.weight.clone()
             old_w[:, indices] /= 2
@@ -71,7 +71,7 @@ class MLPExpert(BaseExpert):
                 self.gradient_monitor.record_gradients(f"{self.name}_fc1", grad.detach())
 
         self._hooks.append(self.fc1.register_forward_hook(save_hidden))
-        # Hook sur le gradient du poids au lieu du module
+        # Hook on weight gradient instead of module
         if self.fc1.weight.requires_grad:
             self._hooks.append(self.fc1.weight.register_hook(save_grad))
 
@@ -81,18 +81,18 @@ class MLPExpert(BaseExpert):
 
 class AudioMLPExpert(MLPExpert):
     """
-    MLP spécifique pour l'Audio.
+    Audio-specific MLP expert.
     """
     def __init__(self, input_dim, hidden_dim, output_dim, name, config=None):
         super().__init__(input_dim, hidden_dim, output_dim, name, config)
         self.expert_type = "audio_mlp"
-        
+
         self.norm = nn.LayerNorm(input_dim)
 
         self.activation = nn.LeakyReLU(negative_slope=0.1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Aplatir si nécessaire
+        # Flatten if necessary
         if x.dim() > 2:
             x = x.view(x.size(0), -1)
         

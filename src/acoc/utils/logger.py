@@ -1,7 +1,7 @@
 """
 ACOC - Logging Utilities
 ========================
-Configuration du logging structuré pour le debug et le monitoring.
+Configuration of structured logging for debugging and monitoring.
 """
 
 import logging
@@ -9,7 +9,7 @@ import sys
 from typing import Optional
 
 
-# Format du log
+# Log format
 LOG_FORMAT = "[%(asctime)s] %(levelname)-8s [%(name)s] %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -20,17 +20,17 @@ def setup_logging(
     format_string: Optional[str] = None
 ) -> None:
     """
-    Configure le système de logging global.
+    Configure the global logging system.
 
     Args:
-        level: Niveau de log ('DEBUG', 'INFO', 'WARNING', 'ERROR')
-        log_file: Chemin optionnel vers un fichier de log
-        format_string: Format personnalisé des logs
+        level: Log level ('DEBUG', 'INFO', 'WARNING', 'ERROR')
+        log_file: Optional path to a log file
+        format_string: Custom log format
     """
     log_level = getattr(logging, level.upper(), logging.INFO)
     log_format = format_string or LOG_FORMAT
 
-    # Configuration de base
+    # Basic configuration
     handlers = [logging.StreamHandler(sys.stdout)]
 
     if log_file:
@@ -44,82 +44,82 @@ def setup_logging(
         force=True
     )
 
-    # Réduire le niveau de log de certains modules verbeux
+    # Reduce log level for verbose modules
     logging.getLogger("torch").setLevel(logging.WARNING)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:
     """
-    Obtient un logger pour un module spécifique.
+    Get a logger for a specific module.
 
     Args:
-        name: Nom du module (généralement __name__)
+        name: Module name (typically __name__)
 
     Returns:
-        Logger configuré
+        Configured logger
 
     Example:
         >>> logger = get_logger(__name__)
-        >>> logger.info("Message d'information")
-        >>> logger.debug("Message de debug")
+        >>> logger.info("Information message")
+        >>> logger.debug("Debug message")
     """
     return logging.getLogger(name)
 
 
 class ACOCLogger:
     """
-    Logger spécialisé pour ACOC avec méthodes de logging structuré.
+    Specialized logger for ACOC with structured logging methods.
     """
 
     def __init__(self, name: str):
         self.logger = logging.getLogger(name)
 
     def log_cycle_start(self, cycle: int, phase: str):
-        """Log le début d'un cycle."""
+        """Log the start of a cycle."""
         self.logger.info(f"Cycle {cycle} - Phase: {phase}")
 
     def log_metrics(self, cycle: int, metrics: dict):
-        """Log les métriques de manière structurée."""
+        """Log metrics in a structured way."""
         metrics_str = ", ".join(f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
                                 for k, v in metrics.items())
         self.logger.info(f"Cycle {cycle} - Metrics: {metrics_str}")
 
     def log_expansion(self, cycle: int, expansion_type: str, target: str, params_added: int):
-        """Log une expansion."""
+        """Log an expansion."""
         self.logger.info(
             f"Cycle {cycle} - Expansion: type={expansion_type}, "
             f"target={target}, params_added={params_added:,}"
         )
 
     def log_saturation(self, cycle: int, block_id: str, score: float):
-        """Log la saturation d'un bloc."""
+        """Log saturation of a block."""
         self.logger.debug(f"Cycle {cycle} - Saturation: block={block_id}, score={score:.2%}")
 
     def log_vote(self, cycle: int, should_expand: bool, confidence: float):
-        """Log le résultat d'un vote."""
+        """Log the result of a vote."""
         action = "EXPAND" if should_expand else "NO_EXPAND"
         self.logger.info(f"Cycle {cycle} - Vote: {action} (confidence={confidence:.2f})")
 
     def log_warning(self, message: str):
-        """Log un avertissement."""
+        """Log a warning."""
         self.logger.warning(message)
 
     def log_error(self, message: str, exc_info: bool = False):
-        """Log une erreur."""
+        """Log an error."""
         self.logger.error(message, exc_info=exc_info)
 
 
-# Logger global pour ACOC
+# Global logger for ACOC
 _acoc_logger: Optional[ACOCLogger] = None
 
 
 def get_acoc_logger() -> ACOCLogger:
     """
-    Obtient le logger global ACOC.
+    Get the global ACOC logger.
 
     Returns:
-        Logger ACOC structuré
+        Structured ACOC logger
     """
     global _acoc_logger
     if _acoc_logger is None:

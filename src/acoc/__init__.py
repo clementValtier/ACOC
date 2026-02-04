@@ -2,13 +2,13 @@
 ACOC (Adaptive Controlled Organic Capacity) - PyTorch Implementation
 =====================================================================
 
-Un système de réseau neuronal à croissance dynamique avec:
-- Expansion contrôlée entre les phases de training
-- Double malus (global + par tâche) pour la parcimonie
-- 5 variantes pour vote et model averaging (seuil RELATIF)
-- Protection anti-forgetting via EWC
-- Métriques de saturation basées sur gradient flow et activations
-- Warmup avec exploration forcée après expansion
+A dynamic growth neural network system with:
+- Controlled expansion between training phases
+- Double penalty (global + per-task) for sparsity
+- 5 variants for voting and model averaging (RELATIVE threshold)
+- Anti-forgetting protection via EWC
+- Saturation metrics based on gradient flow and activations
+- Warmup with forced exploration after expansion
 
 Usage:
     from acoc import ACOCModel, ACOCTrainer, SystemConfig
@@ -19,7 +19,7 @@ Usage:
     trainer.run(num_cycles=10)
 """
 
-# Configuration et structures
+# Configuration and structures
 from .config import (
     TaskType,
     TaskBlock,
@@ -30,7 +30,7 @@ from .config import (
     SaturationMetrics
 )
 
-# Composants de base
+# Base components
 from .core import Router
 from .experts import (
     BaseExpert,
@@ -46,10 +46,10 @@ from .monitoring import (
     ActivationMonitor
 )
 
-# Système de variantes
+# Variant system
 from .variants import VariantSystem
 
-# Gestionnaires
+# Managers
 from .management import (
     ExpansionManager,
     PenaltyManager,
@@ -57,7 +57,7 @@ from .management import (
     WarmupManager
 )
 
-# Modèle principal
+# Main model
 from .model import ACOCModel
 
 # Trainer

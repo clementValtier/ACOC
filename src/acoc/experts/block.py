@@ -1,7 +1,7 @@
 """
 ACOC - Expert Block
 ===================
-Conteneur de couches d'experts.
+Container for expert layers.
 """
 
 import torch
@@ -24,10 +24,10 @@ class ExpertBlock(nn.Module):
     def get_combined_saturation(self) -> SaturationMetrics:
         if not self.experts: return SaturationMetrics()
         all_metrics = [e.get_saturation_metrics() for e in self.experts]
-        
+
         combined = SaturationMetrics()
         n = len(all_metrics)
-        # Moyennes
+        # Average metrics across all experts
         combined.gradient_flow_ratio = sum(m.gradient_flow_ratio for m in all_metrics) / n
         combined.activation_saturation = sum(m.activation_saturation for m in all_metrics) / n
         combined.dead_neuron_ratio = sum(m.dead_neuron_ratio for m in all_metrics) / n

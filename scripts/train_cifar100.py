@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Training ACOC sur CIFAR-100 (Refactorisé)
-=========================================
-Classification sur 100 classes fines (vs 10 pour CIFAR-10).
+Training ACOC on CIFAR-100 (Refactored)
+======================================
+Classification on 100 fine-grained classes (vs 10 for CIFAR-10).
 """
 
 import torch
@@ -16,7 +16,7 @@ from acoc import SystemConfig
 class CIFAR100Trainer(BaseACOCTrainer):
     """Trainer spécifique pour CIFAR-100."""
 
-    # 100 classes fines de CIFAR-100
+    # 100 fine-grained classes of CIFAR-100
     CLASSES = [
         'pomme', 'aquarium_fish', 'bébé', 'ours', 'castor', 'lit', 'abeille', 'scarabée',
         'vélo', 'bouteille', 'bol', 'garçon', 'pont', 'bus', 'papillon', 'chameau',
@@ -50,7 +50,7 @@ class CIFAR100Trainer(BaseACOCTrainer):
         )
 
     def get_dataloaders(self) -> tuple:
-        # Normalisation standard CIFAR-100 (similaire à CIFAR-10)
+        # Standard CIFAR-100 normalization (similar to CIFAR-10)
         transform_train = transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.RandomCrop(32, padding=4),
@@ -95,7 +95,7 @@ class CIFAR100Trainer(BaseACOCTrainer):
         return {
             "Input": "3072 (32×32×3 RGB)",
             "Hidden": 512,
-            "Classes": "100 classes fines"
+            "Classes": "100 fine-grained classes"
         }
 
 

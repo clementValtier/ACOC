@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Training ACOC sur IMDB (Text Classification)
-============================================
-Classification de sentiments sur reviews de films.
-Utilise TF-IDF pour les embeddings textuels.
+Training ACOC on IMDB (Text Classification)
+==========================================
+Sentiment classification on movie reviews.
+Uses TF-IDF for text embeddings.
 """
 
 import torch
@@ -40,37 +40,37 @@ class IMDBTrainer(BaseACOCTrainer):
         )
 
     def get_dataloaders(self) -> tuple:
-        """Charge IMDB avec Hugging Face datasets."""
+        """Load IMDB with Hugging Face datasets."""
         try:
             from datasets import load_dataset
-            print("📥 Téléchargement de IMDB via Hugging Face...")
+            print("📥 Downloading IMDB via Hugging Face...")
 
-            # Charger le dataset
+            # Load dataset
             dataset = load_dataset('imdb')
             train_data = dataset['train']
             test_data = dataset['test']
 
-            # Extraire textes et labels
+            # Extract texts and labels
             train_texts = train_data['text']
             train_labels = train_data['label']
             test_texts = test_data['text']
             test_labels = test_data['label']
 
-            # Vectorisation TF-IDF avec normalisation L2
-            print(f"  Vectorisation TF-IDF (max_features={self.max_features})...")
+            # TF-IDF vectorization with L2 normalization
+            print(f"  TF-IDF vectorization (max_features={self.max_features})...")
             self.vectorizer = TfidfVectorizer(
                 max_features=self.max_features,
                 stop_words='english',
                 max_df=0.7,
                 min_df=5,
-                norm='l2',  # Normalisation L2 pour stabiliser l'apprentissage
-                sublinear_tf=True  # Utiliser log(tf) au lieu de tf brut
+                norm='l2',  # L2 normalization to stabilize learning
+                sublinear_tf=True  # Use log(tf) instead of raw tf
             )
 
             train_features = self.vectorizer.fit_transform(train_texts).toarray()
             test_features = self.vectorizer.transform(test_texts).toarray()
 
-            # Convertir en tensors
+            # Convert to tensors
             train_X = torch.FloatTensor(train_features)
             train_y = torch.LongTensor(train_labels)
             test_X = torch.FloatTensor(test_features)
@@ -80,7 +80,7 @@ class IMDBTrainer(BaseACOCTrainer):
             train_y_onehot = torch.nn.functional.one_hot(train_y, num_classes=2).float()
             test_y_onehot = torch.nn.functional.one_hot(test_y, num_classes=2).float()
 
-            # Créer les datasets
+            # Create datasets
             train_dataset = TensorDataset(train_X, train_y_onehot)
             test_dataset = TensorDataset(test_X, test_y_onehot)
 
@@ -96,8 +96,8 @@ class IMDBTrainer(BaseACOCTrainer):
             return train_loader, test_loader
 
         except ImportError:
-            print("❌ Erreur: 'datasets' non installé.")
-            print("   Installez avec: pip install datasets")
+            print("❌ Error: 'datasets' not installed.")
+            print("   Install with: pip install datasets")
             raise
 
     def get_class_names(self) -> list:
@@ -110,7 +110,7 @@ class IMDBTrainer(BaseACOCTrainer):
         return {
             "Input": f"{self.max_features} (TF-IDF features)",
             "Hidden": 512,
-            "Classes": "Négatif, Positif (sentiment analysis)"
+            "Classes": "Negative, Positive (sentiment analysis)"
         }
 
 

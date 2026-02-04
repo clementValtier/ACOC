@@ -1,7 +1,7 @@
 """
 ACOC - Penalty Manager
 ======================
-Calcule les pénalités de taille (double malus).
+Computes size penalties (dual penalty system).
 """
 
 import numpy as np
@@ -12,7 +12,7 @@ from ..config import SystemConfig, TaskBlock, ModelMetrics
 
 class PenaltyManager:
     """
-    Calcule les pénalités de taille (double malus).
+    Computes size penalties using a dual penalty system.
     """
 
     def __init__(self, config: SystemConfig):
@@ -26,18 +26,18 @@ class PenaltyManager:
         router_params: int
     ) -> Tuple[float, float, Dict[str, float]]:
         """
-        Calcule la pénalité totale.
+        Computes the total penalty.
 
         Returns:
             (total_penalty, global_penalty, task_penalties_dict)
         """
-        # --- Pénalité globale (logarithmique) ---
+        # Global penalty (logarithmic) - penalizes total model size
         total_params = router_params + sum(b.num_params for b in task_blocks.values())
         global_penalty = self.config.alpha_global_penalty * np.log(
             1 + total_params / self.baseline_params
         )
 
-        # --- Pénalités par tâche (quadratique au-delà du seuil) ---
+        # Per-task penalties (quadratic beyond threshold)
         task_penalties = {}
         for block_id, block in task_blocks.items():
             excess = max(0, block.num_params - self.config.task_param_threshold)
@@ -52,20 +52,20 @@ class PenaltyManager:
 
     def adjust_thresholds(self, metrics: ModelMetrics) -> bool:
         """
-        Ajuste dynamiquement les pénalités si la loss stagne.
+        Dynamically adjusts penalties when loss stagnates.
         """
         loss_trend = metrics.get_recent_loss_trend(window=20)
 
         if loss_trend is None:
             return False
 
-        # Si moins de 0.5% d'amélioration sur 20 cycles, relâcher
+        # If improvement is less than 0.5% over 20 cycles, relax penalties
         if loss_trend < 0.005:
             self.config.alpha_global_penalty *= 0.95
             self.config.beta_task_penalty *= 0.95
             return True
 
-        # Si amélioration > 5%, on peut resserrer légèrement
+        # If improvement is greater than 5%, tighten penalties slightly
         if loss_trend > 0.05:
             self.config.alpha_global_penalty *= 1.02
             self.config.beta_task_penalty *= 1.02

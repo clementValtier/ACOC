@@ -1,7 +1,7 @@
 """
 ACOC - Expert Factory
 =====================
-Fabrique pour instancier les experts selon leur type.
+Factory to instantiate experts based on their type.
 """
 
 from .mlp import MLPExpert, AudioMLPExpert
@@ -10,7 +10,7 @@ from ..config import SystemConfig
 
 class ExpertFactory:
     """
-    Factory statique pour créer des experts.
+    Static factory to create experts.
     """
     
     @staticmethod
@@ -34,21 +34,21 @@ class ExpertFactory:
             try:
                 return CNNExpert(input_dim, hidden_dim, output_dim, name, config)
             except Exception as e:
-                # Si le CNN ne peut pas être créé (dimensions incorrectes, etc.)
-                # Fallback vers MLP avec un warning
+                # If CNN cannot be created (incorrect dimensions, etc.)
+                # Fallback to MLP with warning
                 import warnings
                 warnings.warn(
-                    f"⚠️  Impossible de créer un CNN pour {name} (erreur: {e}). "
-                    f"Fallback vers MLP.",
+                    f"Cannot create CNN for {name} (error: {e}). "
+                    f"Falling back to MLP.",
                     RuntimeWarning
                 )
                 return MLPExpert(input_dim, hidden_dim, output_dim, name, config)
 
         else:
-            # Type inconnu, fallback vers MLP
+            # Unknown type, fallback to MLP
             import warnings
             warnings.warn(
-                f"Type d'expert inconnu: {expert_type}. Fallback vers MLP.",
+                f"Unknown expert type: {expert_type}. Falling back to MLP.",
                 RuntimeWarning
             )
             return MLPExpert(input_dim, hidden_dim, output_dim, name, config)

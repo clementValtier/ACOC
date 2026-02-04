@@ -1,8 +1,8 @@
 """
 ACOC - Router
 =============
-Routeur central qui dirige les inputs vers les bons experts/blocs.
-Avec protection EWC contre le catastrophic forgetting.
+Central router that directs inputs to the appropriate experts/blocks.
+With EWC protection against catastrophic forgetting.
 """
 
 import torch
@@ -15,9 +15,9 @@ from ..monitoring import GradientFlowMonitor
 
 class Router(nn.Module):
     """
-    Routeur central qui dirige les inputs vers les bons experts/blocs.
+    Central router that directs inputs to the appropriate experts/blocks.
 
-    Avec protection EWC contre le catastrophic forgetting.
+    With EWC protection against catastrophic forgetting.
     """
 
     def __init__(
@@ -31,17 +31,17 @@ class Router(nn.Module):
         self.input_dim = input_dim
         self.num_routes = num_routes
 
-        # Réseau de routage (petit MLP)
+        # Routing network (small MLP)
         self.routing_net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, num_routes)
         )
 
-        # Biais learnable pour orienter le routage (ex: favoriser CNN pour images)
+        # Learnable bias to guide routing (e.g., favor CNN for images)
         self.route_bias = nn.Parameter(torch.zeros(num_routes))
 
-        # EWC: Fisher information et anciens poids
+        # EWC: Fisher information and old weights
         self.fisher_info: Optional[Dict[str, torch.Tensor]] = None
         self.old_params: Optional[Dict[str, torch.Tensor]] = None
 
@@ -56,7 +56,7 @@ class Router(nn.Module):
         Returns:
             (selected_indices, probabilities)
         """
-        logits = self.routing_net(x) + self.route_bias  # Ajout du biais
+        logits = self.routing_net(x) + self.route_bias  # Add bias
         probabilities = F.softmax(logits, dim=-1)
         selected = probabilities.argmax(dim=-1)
 
@@ -69,14 +69,14 @@ class Router(nn.Module):
         exploration_prob: float = 0.0
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Forward avec exploration forcée vers certaines routes.
-        Utilisé pour le warmup après expansion.
+        Forward with forced exploration towards certain routes.
+        Used for warmup after expansion.
         """
         logits = self.routing_net(x) + self.route_bias
         probabilities = F.softmax(logits, dim=-1)
 
         if force_route is not None and exploration_prob > 0:
-            # Avec probabilité exploration_prob, forcer vers force_route
+            # With probability exploration_prob, force towards force_route
             batch_size = x.size(0)
             mask = torch.rand(batch_size, device=x.device) < exploration_prob
             selected = probabilities.argmax(dim=-1)
@@ -87,38 +87,38 @@ class Router(nn.Module):
         return selected, probabilities
 
     def add_route(self, device: torch.device = None):
-        """Ajoute une nouvelle route (pour un nouveau bloc)."""
+        """Adds a new route (for a new block)."""
         if device is None:
             device = next(self.parameters()).device
 
         old_out = self.routing_net[-1]
         new_out = nn.Linear(old_out.in_features, self.num_routes + 1).to(device)
 
-        # Copier les anciens poids
+        # Copy old weights
         with torch.no_grad():
             new_out.weight[:self.num_routes] = old_out.weight
             new_out.bias[:self.num_routes] = old_out.bias
-            # Initialiser la nouvelle route avec de petits poids
+            # Initialize new route with small weights
             nn.init.xavier_uniform_(new_out.weight[self.num_routes:self.num_routes+1])
             new_out.bias[self.num_routes] = 0.0
 
         self.routing_net[-1] = new_out
         self.num_routes += 1
 
-        # Étendre route_bias pour la nouvelle route
+        # Extend route_bias for the new route
         with torch.no_grad():
             new_bias = torch.zeros(self.num_routes, device=device)
             new_bias[:self.num_routes-1] = self.route_bias
-            new_bias[-1] = 0.0  # Biais neutre pour la nouvelle route
+            new_bias[-1] = 0.0  # Neutral bias for the new route
             self.route_bias = nn.Parameter(new_bias)
 
-        # Invalider EWC (les anciens paramètres ne sont plus valides)
+        # Invalidate EWC (old parameters are no longer valid)
         self.fisher_info = None
         self.old_params = None
 
     def compute_fisher(self, data_loader, num_samples: int = 500):
         """
-        Calcule la Fisher information matrix pour EWC.
+        Computes the Fisher information matrix for EWC.
         """
         device = next(self.parameters()).device
         self.fisher_info = {n: torch.zeros_like(p) for n, p in self.named_parameters()}
@@ -140,7 +140,7 @@ class Router(nn.Module):
             self.zero_grad()
 
             _, probs = self.forward(x)
-            # Log-likelihood de la prédiction
+            # Log-likelihood of the prediction
             log_probs = torch.log(probs + 1e-8)
             selected = probs.argmax(dim=-1)
             loss = -log_probs.gather(1, selected.unsqueeze(1)).mean()
@@ -152,14 +152,14 @@ class Router(nn.Module):
 
             count += x.size(0)
 
-        # Normaliser
+        # Normalize
         for n in self.fisher_info:
             self.fisher_info[n] /= max(count, 1)
 
         self.train()
 
     def ewc_loss(self, lambda_ewc: float = 100.0) -> torch.Tensor:
-        """Calcule la pénalité EWC."""
+        """Computes the EWC penalty."""
         device = next(self.parameters()).device
 
         if self.fisher_info is None or self.old_params is None:
@@ -185,52 +185,52 @@ class Router(nn.Module):
 
     def detect_data_type(self, x: torch.Tensor) -> str:
         """
-        Détecte le type de données en analysant d'abord la dimension,
-        puis les caractéristiques statistiques.
+        Detects data type by analyzing dimension first,
+        then statistical characteristics.
 
         Args:
-            x: Batch de données [batch, features]
+            x: Data batch [batch, features]
 
         Returns:
-            "image", "text", ou "audio"
+            "image", "text", or "audio"
         """
         with torch.no_grad():
             input_dim = x.shape[-1]
 
-            # 1. Détection basée sur la dimension (plus fiable)
-            # Dimensions communes d'images : 784 (28×28), 3072 (32×32×3), 2048, 4096, etc.
+            # 1. Dimension-based detection (more reliable)
+            # Common image dimensions: 784 (28×28), 3072 (32×32×3), 2048, 4096, etc.
             import math
 
-            # Vérifier si c'est une dimension d'image carrée
+            # Check if it's a square image dimension
             for channels in [1, 3, 4]:
                 size_float = math.sqrt(input_dim / channels)
                 size = int(size_float)
                 if abs(size_float - size) < 0.01 and size * size * channels == input_dim:
-                    # C'est probablement une image
+                    # It's probably an image
                     return "image"
 
-            # 2. Détection basée sur les statistiques (fallback)
+            # 2. Statistics-based detection (fallback)
             mean_val = x.mean().item()
             std_val = x.std().item()
             min_val = x.min().item()
             max_val = x.max().item()
 
-            # Sparsité : proportion de valeurs proches de zéro
+            # Sparsity: proportion of values close to zero
             sparsity = (x.abs() < 1e-6).float().mean().item()
 
-            # Texte (TF-IDF) : TRÈS sparse (>70% de zéros), valeurs positives
+            # Text (TF-IDF): VERY sparse (>70% zeros), positive values
             if sparsity > 0.7 and min_val >= 0:
                 return "text"
 
-            # Images normalisées : variance modérée, valeurs dans une plage raisonnable
+            # Normalized images: moderate variance, values in reasonable range
             if -3.0 < min_val < 3.0 and -3.0 < max_val < 3.0 and 0.5 < std_val < 2.5:
                 return "image"
 
-            # Texte (embeddings denses) : distribution centrée, sparsity modérée
+            # Text (dense embeddings): centered distribution, moderate sparsity
             elif abs(mean_val) < 0.2 and std_val > 0.3 and sparsity < 0.5:
                 return "text"
 
-            # Audio: par défaut
+            # Audio: default
             else:
                 return "audio"
 
