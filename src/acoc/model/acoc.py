@@ -44,6 +44,7 @@ class ACOCModel(nn.Module):
         self.penalty_manager = PenaltyManager(config)
         self.pruning_manager = PruningManager(config)
         self.warmup_manager = WarmupManager(config)
+        self.protected_blocks: Set[str] = set() 
         
         self._force_exploration_block: Optional[str] = None
         self._exploration_prob: float = 0.0
@@ -86,6 +87,7 @@ class ACOCModel(nn.Module):
             
             self.task_blocks[block_id] = block
             self._block_modules[block_id] = expert
+            self.protected_blocks.add(block_id)
     
     def _sync_modules(self):
         to_remove = [k for k in self._block_modules.keys() if k not in self.task_blocks]
@@ -257,6 +259,7 @@ class ACOCModel(nn.Module):
 
     def run_maintenance(self) -> Dict[str, List[str]]:
         protected = set(self.warmup_manager.get_warmup_blocks())
+        protected.update(self.protected_blocks)
         # protected.update(self.expansion_manager.get_warmup_blocks(self.current_cycle))
         # Note: get_warmup_blocks may not be in expansion_manager depending on version,
         # but we keep the existing logic.
