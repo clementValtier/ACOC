@@ -350,10 +350,25 @@ See `scripts/README.md` for more details.
 ## 🧪 Tests
 
 ```bash
-# Unit tests
-pytest tests/
+# Run all tests with the global test runner
+python run_tests.py
 
-# Specific test
+# Run a specific test suite
+python run_tests.py --suite config
+python run_tests.py --suite router
+python run_tests.py --suite experts
+python run_tests.py --suite model
+
+# Run with coverage report
+python run_tests.py --coverage
+
+# List all available test suites
+python run_tests.py --list
+
+# Direct pytest usage (alternative)
+pytest tests/ -v
+
+# Specific test file
 pytest tests/test_expansion.py -v
 ```
 
