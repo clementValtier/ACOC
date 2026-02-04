@@ -20,7 +20,7 @@ class TestACOCTrainer:
             input_dim=64,
             hidden_dim=32,
             output_dim=10,
-            use_cross_entropy=False
+            use_cross_entropy=True
         )
 
     @pytest.fixture
