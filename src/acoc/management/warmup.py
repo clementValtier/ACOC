@@ -43,7 +43,7 @@ class WarmupManager:
             "new_params": new_params or set()
         }
 
-    def is_warmup_active(self, block_id: str = None) -> bool:
+    def is_warmup_active(self, block_id: str | None = None) -> bool:
         """Checks if a warmup is currently active."""
         if block_id:
             return block_id in self.active_warmups
@@ -53,7 +53,7 @@ class WarmupManager:
         """Returns list of blocks currently in warmup."""
         return list(self.active_warmups.keys())
 
-    def step(self, block_id: str = None):
+    def step(self, block_id: str | None = None):
         """Increments the warmup step counter."""
         if block_id:
             if block_id in self.active_warmups:
@@ -62,7 +62,7 @@ class WarmupManager:
             for info in self.active_warmups.values():
                 info["steps_done"] += 1
 
-    def should_continue_warmup(self, block_id: str, current_cycle: int = None) -> bool:
+    def should_continue_warmup(self, block_id: str, current_cycle: int | None = None) -> bool:
         """
         Checks if warmup should continue.
         Enforces timeout after max_warmup_cycles to prevent infinite warmup.
@@ -89,7 +89,7 @@ class WarmupManager:
         if block_id in self.active_warmups:
             del self.active_warmups[block_id]
 
-    def check_and_cleanup(self, current_cycle: int = None):
+    def check_and_cleanup(self, current_cycle: int | None = None):
         """
         Cleans up completed warmups.
         Also removes warmups that exceeded cycle timeout.

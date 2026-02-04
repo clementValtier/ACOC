@@ -86,18 +86,18 @@ class Router(nn.Module):
 
         return selected, probabilities
 
-    def add_route(self, device: torch.device = None):
+    def add_route(self, device: torch.device | None = None):
         """Adds a new route (for a new block)."""
         if device is None:
             device = next(self.parameters()).device
 
         old_out = self.routing_net[-1]
-        new_out = nn.Linear(old_out.in_features, self.num_routes + 1).to(device)
+        new_out = nn.Linear(old_out.in_features, self.num_routes + 1).to(device)  # type: ignore[arg-type]
 
         # Copy old weights
         with torch.no_grad():
-            new_out.weight[:self.num_routes] = old_out.weight
-            new_out.bias[:self.num_routes] = old_out.bias
+            new_out.weight[:self.num_routes] = old_out.weight  # type: ignore[index, assignment]
+            new_out.bias[:self.num_routes] = old_out.bias  # type: ignore[index, assignment]
             # Initialize new route with small weights
             nn.init.xavier_uniform_(new_out.weight[self.num_routes:self.num_routes+1])
             new_out.bias[self.num_routes] = 0.0

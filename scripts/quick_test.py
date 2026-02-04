@@ -92,10 +92,10 @@ def main():
                 print(f"  → Expansion: {decision.expansion_type} (confidence: {decision.confidence:.2f})")
                 trainer.expansion_phase(decision, verbose=False)
 
-                # Warmup if necessary
-                if trainer.model.warmup_manager.is_warmup_active():
-                    trainer.warmup_phase(train_loader, num_steps=20, verbose=False)
-                    print(f"  → Warmup performed")
+                # Check warmup status (warmup is automatically handled in training loop)
+                warmup_blocks = trainer.model.warmup_manager.get_warmup_blocks()
+                if warmup_blocks:
+                    print(f"  → Warmup active for blocks: {', '.join(warmup_blocks)}")
             else:
                 print(f"  → No expansion ({decision.reason[:50]}...)")
 

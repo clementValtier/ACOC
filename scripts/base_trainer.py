@@ -81,8 +81,8 @@ class BaseACOCTrainer(ABC):
         class_names = self.get_class_names()
 
         print("📥 Loading data...")
-        print(f"  - Train: {len(train_loader.dataset)} samples")
-        print(f"  - Test: {len(test_loader.dataset)} samples")
+        print(f"  - Train: {len(train_loader.dataset)} samples")  # type: ignore[arg-type]
+        print(f"  - Test: {len(test_loader.dataset)} samples")  # type: ignore[arg-type]
         print()
 
         # Model creation
@@ -130,8 +130,9 @@ class BaseACOCTrainer(ABC):
                 # Per class
                 for i in range(len(labels)):
                     label = labels[i]
-                    class_correct[label] += (predicted[i] == label).item()
-                    class_total[label] += 1
+                    label_idx = int(label.item())
+                    class_correct[label_idx] += int((predicted[i] == label).item())
+                    class_total[label_idx] += 1
 
         accuracy = 100 * correct / total
         print(f"  Global accuracy: {accuracy:.2f}%")

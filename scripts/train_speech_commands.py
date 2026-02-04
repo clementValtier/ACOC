@@ -19,7 +19,7 @@ from acoc import SystemConfig
 class SubsetSC(SPEECHCOMMANDS):
     """Subset of Speech Commands."""
 
-    def __init__(self, subset: str = None):
+    def __init__(self, subset: str | None = None):
         super().__init__("./data", download=True)
 
         # Filter by subset (train/test)

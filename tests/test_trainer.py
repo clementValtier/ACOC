@@ -157,7 +157,7 @@ class TestACOCTrainer:
         """Test expansion phase when no expansion is needed."""
         decision = ExpansionDecision(
             should_expand=False,
-            expansion_type=None,
+            expansion_type="none",
             target_block_id=None,
             confidence=0.0,
             reason="No expansion needed"

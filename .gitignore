@@ -54,3 +54,8 @@ data/
 tmp/
 temp/
 *.tmp
+
+# Node.js / npm
+node_modules/
+package-lock.json
+*.log

@@ -51,7 +51,7 @@ class ACOCTrainer:
         self._warmup_steps_remaining = 0
         self._warmup_target_block: Optional[str] = None
 
-    def _rebuild_optimizer(self, lr_multipliers: Dict[str, float] = None):
+    def _rebuild_optimizer(self, lr_multipliers: Dict[str, float] | None = None):
         """
         Rebuilds optimizer with differentiated LRs.
         Used after expansion to give higher LR to new parameters.
@@ -72,7 +72,7 @@ class ACOCTrainer:
     
     def training_phase(
         self,
-        data_loader: DataLoader = None,
+        data_loader: DataLoader | None = None,
         num_steps: int = 100,
         verbose: bool = True
     ) -> float:
@@ -174,7 +174,7 @@ class ACOCTrainer:
 
     def checkpoint_phase(
         self,
-        validation_data: DataLoader = None,
+        validation_data: DataLoader | None = None,
         verbose: bool = True
     ) -> tuple:
         """
@@ -382,8 +382,8 @@ class ACOCTrainer:
 
     def run_cycle(
         self,
-        data_loader: DataLoader = None,
-        validation_data: DataLoader = None,
+        data_loader: DataLoader | None = None,
+        validation_data: DataLoader | None = None,
         num_steps: int = 50,
         verbose: bool = True
     ) -> TrainingLog:
@@ -446,8 +446,8 @@ class ACOCTrainer:
     def run(
         self,
         num_cycles: int = 10,
-        data_loader: DataLoader = None,
-        validation_data: DataLoader = None,
+        data_loader: DataLoader | None = None,
+        validation_data: DataLoader | None = None,
         num_steps_per_cycle: int = 50,
         verbose: bool = True
     ):

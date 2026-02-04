@@ -144,7 +144,7 @@ class TestModelMetrics:
             metrics.add_loss(3.0 - i * 0.1)  # Decreasing loss
 
         trend = metrics.get_recent_loss_trend(window=10)
-        assert trend > 0.0  # Positive trend means improvement (loss decreasing)
+        assert trend is not None and trend > 0.0  # Positive trend means improvement (loss decreasing)
 
 
 class TestExpansionDecision:

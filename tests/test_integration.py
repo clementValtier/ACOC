@@ -53,7 +53,7 @@ class TestBasicIntegration:
 
         # Verify training occurred
         assert len(trainer.training_logs) == 3
-        assert all(log.avg_loss >= 0 for log in trainer.training_logs)
+        assert all(log.avg_loss is not None and log.avg_loss >= 0 for log in trainer.training_logs)
 
         # Model should still be functional
         x_test = torch.randn(5, 32)
@@ -369,7 +369,7 @@ class TestPenaltyIntegration:
         assert len(model.penalty_manager.penalty_history) > 0
 
         # All losses should be non-negative
-        assert all(log.avg_loss >= 0 for log in trainer.training_logs)
+        assert all(log.avg_loss is not None and log.avg_loss >= 0 for log in trainer.training_logs)
 
 
 class TestMetricsIntegration:

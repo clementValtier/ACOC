@@ -37,7 +37,7 @@ def predict_single(model, image_tensor):
 
         output, routing_stats = model(image_tensor)
         probabilities = torch.softmax(output, dim=-1)
-        predicted_class = torch.argmax(output, dim=-1).item()
+        predicted_class = int(torch.argmax(output, dim=-1).item())
         confidence = probabilities[0, predicted_class].item()
 
     return predicted_class, confidence, routing_stats

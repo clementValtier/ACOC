@@ -22,7 +22,7 @@ class PruningManager:
         self,
         task_blocks: Dict[str, TaskBlock],
         current_cycle: int,
-        protected_blocks: Set[str] = None
+        protected_blocks: Set[str] | None = None
     ) -> List[str]:
         """
         Identifies blocks that haven't been used for a long time.
@@ -133,7 +133,7 @@ class PruningManager:
         self,
         task_blocks: Dict[str, TaskBlock],
         current_cycle: int,
-        protected_blocks: Set[str] = None
+        protected_blocks: Set[str] | None = None
     ) -> Dict[str, List[str]]:
         """Executes a complete maintenance cycle."""
         if protected_blocks is None:

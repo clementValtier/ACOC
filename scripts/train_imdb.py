@@ -67,8 +67,8 @@ class IMDBTrainer(BaseACOCTrainer):
                 sublinear_tf=True  # Use log(tf) instead of raw tf
             )
 
-            train_features = self.vectorizer.fit_transform(train_texts).toarray()
-            test_features = self.vectorizer.transform(test_texts).toarray()
+            train_features = self.vectorizer.fit_transform(train_texts).toarray()  # type: ignore[union-attr]
+            test_features = self.vectorizer.transform(test_texts).toarray()  # type: ignore[union-attr]
 
             # Convert to tensors
             train_X = torch.FloatTensor(train_features)

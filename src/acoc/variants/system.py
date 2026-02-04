@@ -25,7 +25,7 @@ class VariantSystem:
     - 5 "deltas" (small weight perturbations)
     """
 
-    def __init__(self, config: SystemConfig, device: torch.device = None):
+    def __init__(self, config: SystemConfig, device: torch.device | None = None):
         self.config = config
         self.device = device or torch.device('cpu')
         self.deltas: List[Dict[str, torch.Tensor]] = []

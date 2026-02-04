@@ -150,8 +150,8 @@ class ACOCModel(nn.Module):
                 block_output = layer(block_output)
             
             outputs[mask] = block_output
-            
-            count = mask.sum().item()
+
+            count = int(mask.sum().item())
             routing_stats[block_id] = count
             block.usage_count += count
             block.last_used_cycle = self.current_cycle

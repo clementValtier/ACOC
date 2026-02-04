@@ -142,7 +142,7 @@ class ExpansionManager:
         decision: ExpansionDecision,
         task_blocks: Dict[str, TaskBlock],
         current_cycle: int,
-        device: torch.device = None
+        device: torch.device | None = None
     ) -> bool:
         """
         Executes the decided expansion.
@@ -158,10 +158,10 @@ class ExpansionManager:
 
         success = False
 
-        if decision.expansion_type == "width":
+        if decision.expansion_type == "width" and decision.target_block_id:
             success = self._expand_width(decision.target_block_id, task_blocks)
 
-        elif decision.expansion_type == "depth":
+        elif decision.expansion_type == "depth" and decision.target_block_id:
             success = self._expand_depth(decision.target_block_id, task_blocks)
 
         elif decision.expansion_type == "new_block":

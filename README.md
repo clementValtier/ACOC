@@ -372,6 +372,21 @@ pytest tests/ -v
 pytest tests/test_expansion.py -v
 ```
 
+### Static Analysis with Pyright
+
+```bash
+# Install pyright (requires Node.js)
+npm install pyright
+
+# Run type checking and static analysis
+npx pyright
+
+# With specific configuration
+npx pyright --project pyrightconfig.json
+```
+
+Pyright performs static type checking and detects common errors like missing imports, type mismatches, and undefined variables.
+
 ## 📚 References
 
 ### Concepts Used
