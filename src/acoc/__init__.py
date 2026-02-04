@@ -32,6 +32,7 @@ from .config import (
 
 # Base components
 from .core import Router
+from .core.projections import ModalityProjector, ProjectionLayer, ModalityConfig
 from .experts import (
     BaseExpert,
     MLPExpert,
@@ -56,12 +57,13 @@ from .management import (
     PruningManager,
     WarmupManager
 )
+from .management.replay import ReplayBuffer, ReplayExample
 
 # Main model
 from .model import ACOCModel
 
 # Trainer
-from .training import ACOCTrainer
+from .training import ACOCTrainer, ContinualACOCTrainer
 
 # Utilities (optional)
 from .utils import get_logger, setup_logging
@@ -82,6 +84,9 @@ __all__ = [
 
     # Components
     "Router",
+    "ModalityProjector",
+    "ProjectionLayer",
+    "ModalityConfig",
     "BaseExpert",
     "MLPExpert",
     "CNNExpert",
@@ -96,8 +101,11 @@ __all__ = [
     "PenaltyManager",
     "PruningManager",
     "WarmupManager",
+    "ReplayBuffer",
+    "ReplayExample",
 
     # Main
     "ACOCModel",
     "ACOCTrainer",
+    "ContinualACOCTrainer",
 ]
