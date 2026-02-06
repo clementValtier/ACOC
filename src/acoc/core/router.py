@@ -8,7 +8,7 @@ With EWC protection against catastrophic forgetting.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Dict, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
 from ..monitoring import GradientFlowMonitor
 
@@ -116,7 +116,7 @@ class Router(nn.Module):
         self.fisher_info = None
         self.old_params = None
 
-    def compute_fisher(self, data_loader, num_samples: int = 500):
+    def compute_fisher(self, data_loader: Iterable, num_samples: int = 500):
         """
         Computes the Fisher information matrix for EWC.
         """
@@ -172,10 +172,25 @@ class Router(nn.Module):
 
         return lambda_ewc * 0.5 * loss
 
+    def update_load_balance(self, routing_counts: Dict[int, int], alpha: float = 0.01):
+        """
+        Adjusts route_bias to balance load across experts.
+        Pushes data towards under-utilized experts without interfering with task loss.
+        """
+        total = sum(routing_counts.values())
+        if total == 0:
+            return
+
+        target = 1.0 / self.num_routes
+
+        with torch.no_grad():
+            for idx in range(self.num_routes):
+                load_i = routing_counts.get(idx, 0) / total
+                self.route_bias[idx] -= alpha * (load_i - target)
+            self.route_bias.data.clamp_(-2.0, 2.0)
+
     def set_route_bias(self, route_idx: int, bias_value: float):
         """
-        Configure un biais pour favoriser une route spécifique.
-
         Args:
             route_idx: Index de la route à favoriser
             bias_value: Valeur du biais (positif = favorise, négatif = défavorise)

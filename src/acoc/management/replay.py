@@ -200,17 +200,10 @@ class ReplayBuffer:
         else:
             # Handle mismatch by padding to max size
             max_dim = max(d.shape[0] for d in data_list)
-            
-            # Create zero-padded tensor
             data = torch.zeros((len(data_list), max_dim), device=self.device)
-            
-            # Fill with data
             for i, d in enumerate(data_list):
-                current_dim = d.shape[0]
-                data[i, :current_dim] = d
+                data[i, :d.shape[0]] = d
 
-        # Stack into tensors
-        data = torch.stack(data_list)
         targets = torch.stack(target_list)
 
         self.total_sampled += len(indices)

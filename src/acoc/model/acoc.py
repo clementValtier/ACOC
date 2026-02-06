@@ -157,7 +157,12 @@ class ACOCModel(nn.Module):
             routing_stats[block_id] = count
             block.usage_count += count
             block.last_used_cycle = self.current_cycle
-        
+
+        # Dynamic load balancing: adjust router bias towards uniform distribution
+        if self.training and self.config.load_balance_alpha > 0:
+            idx_counts = {i: routing_stats.get(bid, 0) for i, bid in enumerate(block_ids)}
+            self.router.update_load_balance(idx_counts, alpha=self.config.load_balance_alpha)
+
         return outputs, routing_stats
     
     def compute_loss(self, predictions: torch.Tensor, targets: torch.Tensor, include_penalties: bool = True) -> torch.Tensor:

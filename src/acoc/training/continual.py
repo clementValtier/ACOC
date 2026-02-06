@@ -12,9 +12,10 @@ This trainer can be used in three modes:
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from typing import Optional, Dict, List
+from typing import Iterable, Optional, Dict, List
 
 from ..config import SystemConfig
+from ..config.structures import ExpansionDecision
 from ..model import ACOCModel
 from ..management.replay import ReplayBuffer
 from ..core.projections import ModalityProjector
@@ -130,7 +131,7 @@ class ContinualACOCTrainer(ACOCTrainer):
             self.tasks_seen.append(task_id)
 
         # Register modality if new (only if projections enabled)
-        if self.enable_projections and modality not in self.projector.list_modalities():
+        if self.projector is not None and modality not in self.projector.list_modalities():
             self.projector.register_modality(
                 name=modality,
                 input_dim=input_dim,
@@ -143,7 +144,7 @@ class ContinualACOCTrainer(ACOCTrainer):
 
         print(f"  Task ID: {task_id}")
         print(f"  Modality: {modality} ({modality_type})")
-        if self.enable_projections:
+        if self.projector is not None:
             print(f"  Input dim: {input_dim} -> {self.projector.unified_dim}")
         else:
             print(f"  Input dim: {input_dim}")
@@ -162,17 +163,41 @@ class ContinualACOCTrainer(ACOCTrainer):
         # Update Fisher Information Matrix for EWC
         # (This would be done automatically by router's compute_fisher)
         print(f"  * Task '{self.current_task}' completed")
-        if self.enable_replay:
+        if self.replay_buffer is not None:
             print(f"  * Replay buffer: {len(self.replay_buffer)} examples")
 
         # Freeze previous task projections to prevent forgetting
-        if self.enable_projections and self.current_modality:
-            # Optionally freeze projection
-            # self.projector.freeze_projections([self.current_modality])
-            pass
+        if self.projector is not None and self.current_modality:
+            self.projector.freeze_projections([self.current_modality])
+            print(f"  * Frozen projection for '{self.current_modality}'")
 
         self.current_task = None
         self.current_modality = None
+
+    def expansion_phase(
+        self,
+        decision: ExpansionDecision,
+        verbose: bool = True,
+        data_loader: Iterable | None = None
+    ) -> bool:
+        """
+        Override expansion to project raw data before Fisher computation.
+        The router expects unified-dim inputs, but data_loader contains
+        native-dim samples when projections are enabled.
+        """
+        if data_loader is not None and self.projector is not None and self.current_modality:
+            projected_batches = []
+            with torch.no_grad():
+                for batch in data_loader:
+                    x = batch[0] if isinstance(batch, (list, tuple)) else batch
+                    x = x.to(self.model.device)
+                    x_proj = self.projector(x, self.current_modality)
+                    if isinstance(batch, (list, tuple)) and len(batch) > 1:
+                        projected_batches.append((x_proj, batch[1]))
+                    else:
+                        projected_batches.append((x_proj,))
+            return super().expansion_phase(decision, verbose, data_loader=projected_batches)
+        return super().expansion_phase(decision, verbose, data_loader=data_loader)
 
     def checkpoint_phase(
         self,
@@ -182,7 +207,7 @@ class ContinualACOCTrainer(ACOCTrainer):
         """
         Override checkpoint to handle projection of validation data.
         """
-        if validation_data is None or not self.enable_projections:
+        if validation_data is None or self.projector is None:
             return super().checkpoint_phase(validation_data, verbose)
 
         # Create wrapper that projects validation data
@@ -197,7 +222,7 @@ class ContinualACOCTrainer(ACOCTrainer):
                     val_y = val_y.to(model.device)
 
                     # Project through current modality (if projections enabled)
-                    if self.enable_projections and self.current_modality:
+                    if self.projector is not None and self.current_modality:
                         val_x = self.projector(val_x, self.current_modality)
 
                     outputs, _ = model(val_x)
@@ -265,7 +290,7 @@ class ContinualACOCTrainer(ACOCTrainer):
         self.optimizer.zero_grad()
 
         # Project input through modality projector (if enabled)
-        if self.enable_projections and self.current_modality:
+        if self.projector is not None and self.current_modality:
             batch_x = self.projector(batch_x, self.current_modality)
 
         # Forward on current task
@@ -274,7 +299,7 @@ class ContinualACOCTrainer(ACOCTrainer):
 
         # Add replay if enabled and buffer has examples
         loss_replay = torch.tensor(0.0, device=self.model.device)
-        if self.enable_replay and use_replay and len(self.replay_buffer) > 0 and self.replay_steps % self.replay_frequency == 0:
+        if self.replay_buffer is not None and use_replay and len(self.replay_buffer) > 0 and self.replay_steps % self.replay_frequency == 0:
             # Compute replay batch size
             current_batch_size = batch_x.size(0)
             replay_batch_size = int(current_batch_size * self.replay_batch_ratio / (1 - self.replay_batch_ratio))
@@ -287,12 +312,14 @@ class ContinualACOCTrainer(ACOCTrainer):
                 )
 
                 # Project replay samples through their respective modalities INDIVIDUALLY (if enabled)
-                if self.enable_projections:
+                if self.projector is not None:
                     replay_x_projected = []
                     for i in range(replay_x.size(0)):
-                        x_single = replay_x[i]  # Get single sample
+                        x_single = replay_x[i]
                         modality = replay_modalities[i]
-                        # Project single sample
+                        # Truncate to native dim (undo zero-padding from replay buffer)
+                        native_dim = self.projector.modalities[modality].input_dim
+                        x_single = x_single[:native_dim]
                         x_proj = self.projector(x_single.unsqueeze(0), modality)
                         replay_x_projected.append(x_proj.squeeze(0))
 
@@ -310,8 +337,8 @@ class ContinualACOCTrainer(ACOCTrainer):
                 print(f"  Warning: Replay failed: {e}")
                 loss_replay = torch.tensor(0.0, device=self.model.device)
 
-        # Combined loss
-        total_loss = loss_current + loss_replay
+        # Combined loss with configurable replay weight for stronger anti-forgetting
+        total_loss = loss_current + self.config.replay_loss_weight * loss_replay
 
         # Backward
         total_loss.backward()
@@ -338,7 +365,7 @@ class ContinualACOCTrainer(ACOCTrainer):
             data_loader: DataLoader for current task
             num_samples: Number of samples to add (None = all up to buffer capacity)
         """
-        if not self.enable_replay:
+        if self.replay_buffer is None:
             print(f"\n  Warning: Replay disabled, skipping buffer population")
             return
 
@@ -407,7 +434,7 @@ class ContinualACOCTrainer(ACOCTrainer):
                     batch_y = batch_y.to(self.model.device)
 
                     # Project (if enabled)
-                    if self.enable_projections and modality in self.projector.list_modalities():
+                    if self.projector is not None and modality in self.projector.list_modalities():
                         batch_x = self.projector(batch_x, modality)
 
                     # Forward
@@ -469,8 +496,7 @@ class ContinualACOCTrainer(ACOCTrainer):
             f"Current task: {self.current_task or 'None'}",
         ]
 
-        # Add replay info if enabled
-        if self.enable_replay:
+        if self.replay_buffer is not None:
             lines.extend([
                 f"Replay buffer: {len(self.replay_buffer)}/{self.replay_buffer.capacity}",
                 f"Replay steps: {self.replay_steps}",
@@ -478,13 +504,11 @@ class ContinualACOCTrainer(ACOCTrainer):
 
         lines.append("")
 
-        # Add projector summary if enabled
-        if self.enable_projections:
+        if self.projector is not None:
             lines.append(self.projector.summary())
             lines.append("")
 
-        # Add replay buffer summary if enabled
-        if self.enable_replay:
+        if self.replay_buffer is not None:
             lines.append(self.replay_buffer.summary())
 
         return "\n".join(lines)

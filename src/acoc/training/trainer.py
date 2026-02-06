@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from typing import Any, List, Dict, Optional, Callable
+from typing import Any, Iterable, List, Dict, Optional, Callable
 
 from ..config import SystemConfig, TrainingLog, ExpansionDecision
 from ..model import ACOCModel
@@ -263,8 +263,18 @@ class ACOCTrainer:
             print(f"  Vote: expand={should_expand}, conf={confidence:.2f}")
             print(f"  {reason}")
 
-        # Merge best deltas
+        # Conditional merge: only apply if it actually improves the score
+        score_before = evaluate_fn(self.model)
+        state_before = {k: v.clone() for k, v in self.model.state_dict().items()}
         self.model.variant_system.merge_best_deltas(self.model, evaluate_fn)
+        score_after = evaluate_fn(self.model)
+
+        if score_after <= score_before:
+            self.model.load_state_dict(state_before)
+            if verbose:
+                print(f"  Delta merge rejected (score {score_before:.4f} → {score_after:.4f})")
+        elif verbose:
+            print(f"  Delta merge accepted (score {score_before:.4f} → {score_after:.4f})")
 
         # Evolve deltas
         scored = self.model.variant_system.evaluate_variants(self.model, evaluate_fn)
@@ -309,7 +319,8 @@ class ACOCTrainer:
     def expansion_phase(
         self,
         decision: ExpansionDecision,
-        verbose: bool = True
+        verbose: bool = True,
+        data_loader: Iterable | None = None
     ) -> bool:
         """
         Expansion phase with warmup startup.
@@ -322,11 +333,9 @@ class ACOCTrainer:
         if verbose:
             print(f"\n[Cycle {self.model.current_cycle}] === EXPANSION PHASE ===")
 
-        # Save router Fisher info
-        # (simplified: using simulated data)
-        self.model.router.compute_fisher(
-            self._create_dummy_dataloader()
-        )
+        # Compute Fisher on real data for meaningful EWC protection
+        fisher_data = data_loader if data_loader is not None else self._create_dummy_dataloader()
+        self.model.router.compute_fisher(fisher_data)
 
         # Execute expansion
         success = self.model.execute_expansion(decision)
@@ -400,8 +409,8 @@ class ACOCTrainer:
         # 3. Decision
         decision = self.decision_phase(variant_vote, confidence, verbose=verbose)
 
-        # 4. Expansion (with automatic warmup)
-        expanded = self.expansion_phase(decision, verbose=verbose)
+        # 4. Expansion (with automatic warmup) — uses real data for Fisher/EWC
+        expanded = self.expansion_phase(decision, verbose=verbose, data_loader=data_loader)
 
         # 5. Maintenance (periodic)
         if self.model.current_cycle % self.config.maintenance_interval == 0:
