@@ -337,8 +337,13 @@ class ContinualACOCTrainer(ACOCTrainer):
                 print(f"  Warning: Replay failed: {e}")
                 loss_replay = torch.tensor(0.0, device=self.model.device)
 
-        # Combined loss with configurable replay weight for stronger anti-forgetting
-        total_loss = loss_current + self.config.replay_loss_weight * loss_replay
+        # Auxiliary routing loss
+        routing_loss = self._compute_routing_loss()
+
+        # Combined loss
+        total_loss = (loss_current
+                      + self.config.replay_loss_weight * loss_replay
+                      + self.config.routing_loss_weight * routing_loss)
 
         # Backward
         total_loss.backward()

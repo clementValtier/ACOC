@@ -67,8 +67,9 @@ class SystemConfig:
     # === Device ===
     device: str = "cuda"  # "cuda" or "cpu"
 
-    # === Load Balancing ===
+    # === Load Balancing & Routing ===
     load_balance_alpha: float = 0.01  # dynamic bias adjustment rate for router load balancing
+    routing_loss_weight: float = 0.1  # auxiliary loss encouraging routing to architecturally-correct blocks
 
     # === Replay ===
     replay_loss_weight: float = 1.5  # weight applied to replay loss (>1 = stronger anti-forgetting)

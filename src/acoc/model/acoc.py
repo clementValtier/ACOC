@@ -49,8 +49,10 @@ class ACOCModel(nn.Module):
         self._force_exploration_block: Optional[str] = None
         self._exploration_prob: float = 0.0
         self._router_bias_initialized: bool = False
+        self.last_routing_probs: Optional[torch.Tensor] = None
 
         self._initialize_base_blocks()
+        self._sync_expert_types()
         self.to(self.device)
     
     def _initialize_base_blocks(self):
@@ -89,6 +91,18 @@ class ACOCModel(nn.Module):
             self._block_modules[block_id] = expert
             self.protected_blocks.add(block_id)
     
+    def _sync_expert_types(self):
+        """Build route-index → expert-type map and pass it to the router."""
+        block_ids = list(self.task_blocks.keys())
+        expert_types: Dict[int, str] = {}
+        for idx, block_id in enumerate(block_ids):
+            block = self.task_blocks[block_id]
+            if block.layers:
+                first_layer = block.layers[0]
+                if isinstance(first_layer, BaseExpert):
+                    expert_types[idx] = first_layer.expert_type
+        self.router.set_expert_types(expert_types)
+
     def _sync_modules(self):
         to_remove = [k for k in self._block_modules.keys() if k not in self.task_blocks]
         for k in to_remove:
@@ -117,8 +131,8 @@ class ACOCModel(nn.Module):
             target_block = f"base_{data_type}"
             if target_block in block_ids:
                 target_idx = block_ids.index(target_block)
-                self.router.set_route_bias(target_idx, 1.0)
-                print(f"[Router] Detected type: {data_type} → slight bias (+1.0) towards {target_block}")
+                self.router.set_route_bias(target_idx, 3.0)
+                print(f"[Router] Detected type: {data_type} → bias (+3.0) towards {target_block}")
 
             self._router_bias_initialized = True
 
@@ -133,7 +147,10 @@ class ACOCModel(nn.Module):
                 selected, probs = self.router(x)
         else:
             selected, probs = self.router(x)
-        
+
+        # Store probs for auxiliary routing loss in the trainer
+        self.last_routing_probs = probs
+
         block_ids = list(self.task_blocks.keys())
         routing_stats = {bid: 0 for bid in block_ids}
         outputs = torch.zeros(batch_size, self.config.output_dim, device=self.device)
@@ -158,7 +175,7 @@ class ACOCModel(nn.Module):
             block.usage_count += count
             block.last_used_cycle = self.current_cycle
 
-        # Dynamic load balancing: adjust router bias towards uniform distribution
+        # Dynamic load balancing: architecture-aware target distribution
         if self.training and self.config.load_balance_alpha > 0:
             idx_counts = {i: routing_stats.get(bid, 0) for i, bid in enumerate(block_ids)}
             self.router.update_load_balance(idx_counts, alpha=self.config.load_balance_alpha)
@@ -256,8 +273,9 @@ class ACOCModel(nn.Module):
                     self.config.new_block_exploration_prob
                 )
 
-            # Synchronize PyTorch modules
+            # Synchronize PyTorch modules and expert type map
             self._sync_modules()
+            self._sync_expert_types()
             self.to(self.device)
 
         return success

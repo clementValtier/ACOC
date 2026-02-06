@@ -45,6 +45,10 @@ class Router(nn.Module):
         self.fisher_info: Optional[Dict[str, torch.Tensor]] = None
         self.old_params: Optional[Dict[str, torch.Tensor]] = None
 
+        # Architecture awareness
+        self.expert_types: Dict[int, str] = {}  # route index → expert type
+        self.detected_data_type: Optional[str] = None
+
         # Monitoring
         self.gradient_monitor = GradientFlowMonitor()
 
@@ -172,21 +176,58 @@ class Router(nn.Module):
 
         return lambda_ewc * 0.5 * loss
 
+    # Mapping: detected data type → matching expert types
+    _DATA_TYPE_TO_EXPERT: Dict[str, str] = {
+        "image": "cnn",
+        "text": "mlp",
+        "audio": "audio_mlp",
+    }
+
+    def set_expert_types(self, expert_types: Dict[int, str]):
+        """Register the mapping from route index to expert type string."""
+        self.expert_types = expert_types
+
+    def get_matching_indices(self, data_type: Optional[str] = None) -> list[int]:
+        """Return route indices whose expert type matches the given data type."""
+        if data_type is None or not self.expert_types:
+            return []
+        target_expert = self._DATA_TYPE_TO_EXPERT.get(data_type)
+        if target_expert is None:
+            return []
+        return [i for i, et in self.expert_types.items() if et == target_expert]
+
     def update_load_balance(self, routing_counts: Dict[int, int], alpha: float = 0.01):
         """
-        Adjusts route_bias to balance load across experts.
-        Pushes data towards under-utilized experts without interfering with task loss.
+        Architecture-aware load balancing.
+        When a data type is detected and expert types are known, the target
+        distribution favours matching blocks (~70%) over non-matching ones.
+        Falls back to uniform 1/N when no type info is available.
         """
         total = sum(routing_counts.values())
         if total == 0:
             return
 
-        target = 1.0 / self.num_routes
+        # Compute target distribution
+        matching = self.get_matching_indices(self.detected_data_type)
+
+        if matching and len(matching) < self.num_routes:
+            # Architecture-aware: 70% to matching blocks, 30% to others
+            n_match = len(matching)
+            n_other = self.num_routes - n_match
+            targets: Dict[int, float] = {}
+            for idx in range(self.num_routes):
+                if idx in matching:
+                    targets[idx] = 0.7 / n_match
+                else:
+                    targets[idx] = 0.3 / n_other
+        else:
+            # No type info or all blocks match → uniform
+            targets = {idx: 1.0 / self.num_routes for idx in range(self.num_routes)}
 
         with torch.no_grad():
             for idx in range(self.num_routes):
                 load_i = routing_counts.get(idx, 0) / total
-                self.route_bias[idx] -= alpha * (load_i - target)
+                self.route_bias[idx] -= alpha * (load_i - targets[idx])
             self.route_bias.data.clamp_(-2.0, 2.0)
 
     def set_route_bias(self, route_idx: int, bias_value: float):
@@ -201,7 +242,8 @@ class Router(nn.Module):
     def detect_data_type(self, x: torch.Tensor) -> str:
         """
         Detects data type by analyzing dimension first,
-        then statistical characteristics.
+        then statistical characteristics.  The result is also stored in
+        ``self.detected_data_type`` so the load balancer can use it.
 
         Args:
             x: Data batch [batch, features]
@@ -212,41 +254,35 @@ class Router(nn.Module):
         with torch.no_grad():
             input_dim = x.shape[-1]
 
-            # 1. Dimension-based detection (more reliable)
-            # Common image dimensions: 784 (28×28), 3072 (32×32×3), 2048, 4096, etc.
             import math
 
-            # Check if it's a square image dimension
             for channels in [1, 3, 4]:
                 size_float = math.sqrt(input_dim / channels)
                 size = int(size_float)
                 if abs(size_float - size) < 0.01 and size * size * channels == input_dim:
-                    # It's probably an image
+                    self.detected_data_type = "image"
                     return "image"
 
-            # 2. Statistics-based detection (fallback)
             mean_val = x.mean().item()
             std_val = x.std().item()
             min_val = x.min().item()
             max_val = x.max().item()
-
-            # Sparsity: proportion of values close to zero
             sparsity = (x.abs() < 1e-6).float().mean().item()
 
-            # Text (TF-IDF): VERY sparse (>70% zeros), positive values
             if sparsity > 0.7 and min_val >= 0:
+                self.detected_data_type = "text"
                 return "text"
 
-            # Normalized images: moderate variance, values in reasonable range
             if -3.0 < min_val < 3.0 and -3.0 < max_val < 3.0 and 0.5 < std_val < 2.5:
+                self.detected_data_type = "image"
                 return "image"
 
-            # Text (dense embeddings): centered distribution, moderate sparsity
             elif abs(mean_val) < 0.2 and std_val > 0.3 and sparsity < 0.5:
+                self.detected_data_type = "text"
                 return "text"
 
-            # Audio: default
             else:
+                self.detected_data_type = "audio"
                 return "audio"
 
     def get_param_count(self) -> int:

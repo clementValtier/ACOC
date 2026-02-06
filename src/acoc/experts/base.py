@@ -31,6 +31,7 @@ class BaseExpert(nn.Module, ABC):
         self.output_dim = output_dim
         self.name = name
         self.config = config
+        self.expert_type: str = "mlp"  # overridden by subclasses
 
         # Monitoring
         self.activation_monitor = ActivationMonitor()

@@ -147,6 +147,22 @@ class ACOCTrainer:
         
         return avg_loss
     
+    def _compute_routing_loss(self) -> torch.Tensor:
+        """
+        Auxiliary loss encouraging routing to architecturally-correct blocks.
+        Uses the stored routing probabilities and expert type map.
+        """
+        probs = self.model.last_routing_probs
+        if probs is None or self.config.routing_loss_weight <= 0:
+            return torch.tensor(0.0, device=self.model.device)
+
+        matching = self.model.router.get_matching_indices(self.model.router.detected_data_type)
+        if not matching or len(matching) == self.model.router.num_routes:
+            return torch.tensor(0.0, device=self.model.device)
+
+        correct_probs = probs[:, matching].sum(dim=1)
+        return -torch.log(correct_probs + 1e-8).mean()
+
     def _training_step(
         self,
         batch_x: torch.Tensor,
@@ -158,8 +174,12 @@ class ACOCTrainer:
         # Forward
         outputs, routing_stats = self.model(batch_x)
 
-        # Loss
+        # Task loss + penalties
         loss = self.model.compute_loss(outputs, batch_y)
+
+        # Auxiliary routing loss
+        routing_loss = self._compute_routing_loss()
+        loss = loss + self.config.routing_loss_weight * routing_loss
 
         # Backward
         loss.backward()
